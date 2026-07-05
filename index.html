@@ -1661,11 +1661,36 @@ function renderOverviewTab() {
   html += '<div class="card"><div class="result-header"><h4>基本信息</h4></div><div class="profile-grid">' +
     profile.map(([k, v]) => '<div class="profile-item"><div class="label">' + esc(k) + '</div><div class="value">' + esc(v) + '</div></div>').join('') +
     '</div></div>';
+  html += renderResumeFilesOverview();
   html += renderStageBoard();
   html += renderMaterialSummary();
   if (current.stages.final && current.stages.final.result) {
     html += renderFinalReportSummary();
   }
+  return html;
+}
+
+function renderResumeFilesOverview() {
+  const files = filesOf(current.id);
+  const meta = (current.stages.resume && current.stages.resume.fileMeta) || [];
+  if (!files.length && !meta.length) return '';
+  let html = '<div class="card"><div class="result-header"><h4>已上传简历</h4>' +
+    '<button class="btn btn-secondary" onclick="switchTab(\'resume\')">管理材料</button></div>';
+  if (files.length) {
+    html += files.map((f, i) => {
+      const tag = f.kind === 'pdf-text'
+        ? ' <span class="tag tag-good" style="font-size:11px;padding:1px 8px">文字已提取</span>'
+        : (f.kind === 'pdf' ? ' <span class="tag tag-mid" style="font-size:11px;padding:1px 8px">扫描件</span>' : '');
+      const actions = f.data
+        ? '<button onclick="openResumeFile(' + i + ')" title="查看原文件">查看</button><button onclick="downloadResumeFile(' + i + ')" title="下载原文件">下载</button>'
+        : '<span style="font-size:12px;color:var(--warning)">旧版无原文件</span>';
+      return '<div class="file-chip"><span>📄 ' + esc(f.name) + ' <small>' + fmtSize(f.size) + '</small>' + tag +
+        '</span><span style="display:flex;align-items:center;gap:8px;flex-shrink:0">' + actions + '</span></div>';
+    }).join('');
+  } else {
+    html += '<div style="font-size:12.5px;color:var(--warning)">仅找到旧版文件摘要，未找到可查看/下载的原文件；请进入材料页重新上传。</div>';
+  }
+  html += '</div>';
   return html;
 }
 
