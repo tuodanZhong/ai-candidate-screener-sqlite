@@ -94,6 +94,19 @@ def configured_password() -> str:
     return os.environ.get("APP_PASSWORD", "").strip()
 
 
+def configured_users() -> dict[str, str]:
+    raw = os.environ.get("APP_USERS", "").strip()
+    if raw:
+        try:
+            parsed = json.loads(raw)
+            if isinstance(parsed, dict):
+                return {str(k): str(v) for k, v in parsed.items() if str(k).strip()}
+        except Exception:
+            return {}
+    password = configured_password()
+    return {"admin": password} if password else {}
+
+
 class TextExtractor(HTMLParser):
     def __init__(self) -> None:
         super().__init__()
@@ -341,7 +354,7 @@ class AppServer(BaseHTTPRequestHandler):
             return
 
         if parsed.path == "/api/session":
-            self.send_json({"authenticated": self.is_authenticated(), "loginRequired": bool(configured_password())})
+            self.send_json({"authenticated": self.is_authenticated(), "loginRequired": bool(configured_users())})
             return
 
         if not self.require_auth(parsed):
@@ -395,14 +408,16 @@ class AppServer(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         if parsed.path == "/api/login":
             try:
-                password = configured_password()
-                if not password:
-                    self.send_json({"ok": False, "error": "服务端未配置 APP_PASSWORD"}, HTTPStatus.SERVICE_UNAVAILABLE)
+                users = configured_users()
+                if not users:
+                    self.send_json({"ok": False, "error": "服务端未配置 APP_USERS"}, HTTPStatus.SERVICE_UNAVAILABLE)
                     return
                 payload = self.read_json_body()
+                username = str(payload.get("username") or "").strip()
                 submitted = str(payload.get("password") or "")
-                if not hmac.compare_digest(submitted, password):
-                    self.send_json({"ok": False, "error": "密码错误"}, HTTPStatus.UNAUTHORIZED)
+                expected = users.get(username)
+                if not expected or not hmac.compare_digest(submitted, expected):
+                    self.send_json({"ok": False, "error": "账号或密码错误"}, HTTPStatus.UNAUTHORIZED)
                     return
                 body = json.dumps({"ok": True}, ensure_ascii=False).encode("utf-8")
                 self.send_response(HTTPStatus.OK)

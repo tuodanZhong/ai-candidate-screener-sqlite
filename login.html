@@ -52,6 +52,7 @@
     font-weight: 600;
     margin-bottom: 8px;
   }
+  label + input + label { margin-top: 14px; }
   input {
     width: 100%;
     height: 44px;
@@ -94,15 +95,18 @@
 <body>
   <form class="login" id="loginForm">
     <h1>候选人评估系统</h1>
-    <p>请输入访问密码后继续。</p>
+    <p>请输入账号和密码后继续。</p>
+    <label for="username">账号</label>
+    <input id="username" name="username" type="text" autocomplete="username" autofocus required>
     <label for="password">访问密码</label>
-    <input id="password" name="password" type="password" autocomplete="current-password" autofocus required>
+    <input id="password" name="password" type="password" autocomplete="current-password" required>
     <button id="loginBtn" type="submit">登录</button>
     <div class="error" id="err"></div>
   </form>
 <script>
 const form = document.getElementById('loginForm');
-const input = document.getElementById('password');
+const username = document.getElementById('username');
+const password = document.getElementById('password');
 const btn = document.getElementById('loginBtn');
 const err = document.getElementById('err');
 
@@ -115,7 +119,7 @@ form.addEventListener('submit', async (ev) => {
     const resp = await fetch('/api/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password: input.value })
+      body: JSON.stringify({ username: username.value.trim(), password: password.value })
     });
     const data = await resp.json().catch(() => ({}));
     if (!resp.ok || !data.ok) throw new Error(data.error || '登录失败');
@@ -123,7 +127,7 @@ form.addEventListener('submit', async (ev) => {
   } catch (e) {
     err.textContent = e.message;
     err.style.display = 'block';
-    input.select();
+    password.select();
   } finally {
     btn.disabled = false;
     btn.textContent = '登录';
