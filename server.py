@@ -72,22 +72,38 @@ def sign_session(payload: str) -> str:
     return base64.urlsafe_b64encode(digest).decode("ascii").rstrip("=")
 
 
-def make_session_value() -> str:
+def encode_session_username(username: str) -> str:
+    return base64.urlsafe_b64encode(username.encode("utf-8")).decode("ascii").rstrip("=")
+
+
+def decode_session_username(value: str) -> str:
+    padding = "=" * (-len(value) % 4)
+    return base64.urlsafe_b64decode((value + padding).encode("ascii")).decode("utf-8")
+
+
+def make_session_value(username: str) -> str:
     expires = int(time.time()) + SESSION_TTL_SECONDS
     nonce = secrets.token_urlsafe(18)
-    payload = f"{expires}.{nonce}"
+    payload = f"{expires}.{nonce}.{encode_session_username(username)}"
     return f"{payload}.{sign_session(payload)}"
 
 
-def valid_session_value(value: str) -> bool:
+def session_user_from_value(value: str) -> str | None:
     try:
-        expires_s, nonce, signature = value.split(".", 2)
-        payload = f"{expires_s}.{nonce}"
+        expires_s, nonce, username_b64, signature = value.split(".", 3)
+        payload = f"{expires_s}.{nonce}.{username_b64}"
         if not hmac.compare_digest(signature, sign_session(payload)):
-            return False
-        return int(expires_s) >= int(time.time())
+            return None
+        if int(expires_s) < int(time.time()):
+            return None
+        username = decode_session_username(username_b64).strip()
+        return username or None
     except Exception:
-        return False
+        return None
+
+
+def valid_session_value(value: str) -> bool:
+    return session_user_from_value(value) is not None
 
 
 def configured_password() -> str:
@@ -304,16 +320,21 @@ class AppServer(BaseHTTPRequestHandler):
         self.send_header("Set-Cookie", cookie)
 
     def is_authenticated(self) -> bool:
+        return self.current_user() is not None
+
+    def current_user(self) -> str | None:
         raw = self.headers.get("Cookie", "")
         if not raw:
-            return False
+            return None
         cookie = SimpleCookie()
         try:
             cookie.load(raw)
         except Exception:
-            return False
+            return None
         morsel = cookie.get(SESSION_COOKIE)
-        return bool(morsel and valid_session_value(morsel.value))
+        if not morsel:
+            return None
+        return session_user_from_value(morsel.value)
 
     def require_auth(self, parsed) -> bool:
         if parsed.path in {"/api/health", "/api/session", "/api/login"}:
@@ -354,7 +375,8 @@ class AppServer(BaseHTTPRequestHandler):
             return
 
         if parsed.path == "/api/session":
-            self.send_json({"authenticated": self.is_authenticated(), "loginRequired": bool(configured_users())})
+            username = self.current_user()
+            self.send_json({"authenticated": bool(username), "username": username or "", "loginRequired": bool(configured_users())})
             return
 
         if not self.require_auth(parsed):
@@ -419,9 +441,9 @@ class AppServer(BaseHTTPRequestHandler):
                 if not expected or not hmac.compare_digest(submitted, expected):
                     self.send_json({"ok": False, "error": "账号或密码错误"}, HTTPStatus.UNAUTHORIZED)
                     return
-                body = json.dumps({"ok": True}, ensure_ascii=False).encode("utf-8")
+                body = json.dumps({"ok": True, "username": username}, ensure_ascii=False).encode("utf-8")
                 self.send_response(HTTPStatus.OK)
-                self.send_cookie(make_session_value())
+                self.send_cookie(make_session_value(username))
                 self.send_header("Content-Type", "application/json; charset=utf-8")
                 self.send_header("Content-Length", str(len(body)))
                 self.end_headers()
