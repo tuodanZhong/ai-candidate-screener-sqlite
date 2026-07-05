@@ -20,6 +20,8 @@ jobs:
       SERVICE_NAME: ${{ secrets.SERVICE_NAME || 'ai-candidate-screener' }}
       APP_PORT: ${{ secrets.APP_PORT || '8765' }}
       DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+      APP_PASSWORD: ${{ secrets.APP_PASSWORD }}
+      APP_SESSION_SECRET: ${{ secrets.APP_SESSION_SECRET }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -55,7 +57,11 @@ jobs:
         run: |
           scp -i ~/.ssh/deploy_key /tmp/ai-candidate-screener-sqlite.tar.gz \
             "$DEPLOY_USER@$DEPLOY_HOST:/tmp/ai-candidate-screener-sqlite.tar.gz"
-          printf 'DEEPSEEK_API_KEY=%s\n' "$DEEPSEEK_API_KEY" > /tmp/ai-candidate-screener.env
+          {
+            printf 'DEEPSEEK_API_KEY=%s\n' "$DEEPSEEK_API_KEY"
+            printf 'APP_PASSWORD=%s\n' "$APP_PASSWORD"
+            printf 'APP_SESSION_SECRET=%s\n' "$APP_SESSION_SECRET"
+          } > /tmp/ai-candidate-screener.env
           scp -i ~/.ssh/deploy_key /tmp/ai-candidate-screener.env \
             "$DEPLOY_USER@$DEPLOY_HOST:/tmp/ai-candidate-screener.env"
 

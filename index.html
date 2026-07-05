@@ -92,6 +92,13 @@
   }
   .engine-box p { font-size: 11px; color: var(--text-400); margin-top: 5px; line-height: 1.5; }
   .storage-note { padding: 10px 16px; font-size: 11px; color: var(--text-400); border-top: 1px solid var(--border-light); }
+  .logout-btn {
+    width: calc(100% - 32px); margin: 0 16px 14px; padding: 7px 10px;
+    border: 1px solid var(--border-medium); border-radius: var(--radius-sm);
+    background: transparent; color: var(--text-400); font-size: 12.5px;
+    font-family: var(--font-sans); cursor: pointer;
+  }
+  .logout-btn:hover { color: var(--danger); border-color: rgba(192,57,43,0.35); background: rgba(192,57,43,0.04); }
 
   /* ============ 主区域 ============ */
   .main { flex: 1; overflow-y: auto; }
@@ -314,6 +321,7 @@
       <p>简历带文件、项目联网查看时自动使用Claude</p>
     </div>
     <div class="storage-note" id="storageNote">数据存储加载中…</div>
+    <button class="logout-btn" onclick="logout()">退出登录</button>
   </aside>
   <main class="main"><div class="main-inner" id="mainArea"></div></main>
 </div>
@@ -381,6 +389,13 @@ async function stDel(key) {
   if (storageMode === 'window.storage') { try { await window.storage.delete(key, true); return; } catch(e) {} }
   if (storageMode === 'localStorage') { try { localStorage.removeItem(key); return; } catch(e) {} }
   delete memStore[key];
+}
+
+async function logout() {
+  try {
+    await fetch(API_BASE + '/api/logout', { method: 'POST' });
+  } catch(e) {}
+  location.href = '/login';
 }
 
 let index = [];          // [{id, name}]

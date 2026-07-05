@@ -15,15 +15,21 @@ All persisted app data is stored in:
 from __future__ import annotations
 
 import argparse
+import base64
+import hashlib
+import hmac
 import json
 import mimetypes
 import os
 import re
+import secrets
 import sqlite3
+import time
 import urllib.error
 import urllib.request
 from html.parser import HTMLParser
 from http import HTTPStatus
+from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import unquote, urlparse
@@ -33,6 +39,8 @@ ROOT = Path(__file__).resolve().parent
 DEFAULT_DB = ROOT / "data" / "candidates.sqlite3"
 MAX_BODY_BYTES = 80 * 1024 * 1024
 MAX_FETCH_BYTES = 2 * 1024 * 1024
+SESSION_COOKIE = "screener_session"
+SESSION_TTL_SECONDS = 12 * 60 * 60
 
 
 def load_env_file(path: Path) -> None:
@@ -47,6 +55,43 @@ def load_env_file(path: Path) -> None:
         value = value.strip().strip('"').strip("'")
         if key and key not in os.environ:
             os.environ[key] = value
+
+
+def get_session_secret() -> str:
+    secret = os.environ.get("APP_SESSION_SECRET", "").strip()
+    if not secret:
+        secret = getattr(get_session_secret, "_fallback", "")
+        if not secret:
+            secret = secrets.token_urlsafe(32)
+            setattr(get_session_secret, "_fallback", secret)
+    return secret
+
+
+def sign_session(payload: str) -> str:
+    digest = hmac.new(get_session_secret().encode("utf-8"), payload.encode("utf-8"), hashlib.sha256).digest()
+    return base64.urlsafe_b64encode(digest).decode("ascii").rstrip("=")
+
+
+def make_session_value() -> str:
+    expires = int(time.time()) + SESSION_TTL_SECONDS
+    nonce = secrets.token_urlsafe(18)
+    payload = f"{expires}.{nonce}"
+    return f"{payload}.{sign_session(payload)}"
+
+
+def valid_session_value(value: str) -> bool:
+    try:
+        expires_s, nonce, signature = value.split(".", 2)
+        payload = f"{expires_s}.{nonce}"
+        if not hmac.compare_digest(signature, sign_session(payload)):
+            return False
+        return int(expires_s) >= int(time.time())
+    except Exception:
+        return False
+
+
+def configured_password() -> str:
+    return os.environ.get("APP_PASSWORD", "").strip()
 
 
 class TextExtractor(HTMLParser):
@@ -230,6 +275,44 @@ class AppServer(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def request_is_https(self) -> bool:
+        return self.headers.get("X-Forwarded-Proto", "").lower() == "https"
+
+    def send_cookie(self, value: str, max_age: int = SESSION_TTL_SECONDS) -> None:
+        cookie = f"{SESSION_COOKIE}={value}; Path=/; HttpOnly; SameSite=Lax; Max-Age={max_age}"
+        if self.request_is_https():
+            cookie += "; Secure"
+        self.send_header("Set-Cookie", cookie)
+
+    def clear_cookie(self) -> None:
+        cookie = f"{SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0"
+        if self.request_is_https():
+            cookie += "; Secure"
+        self.send_header("Set-Cookie", cookie)
+
+    def is_authenticated(self) -> bool:
+        raw = self.headers.get("Cookie", "")
+        if not raw:
+            return False
+        cookie = SimpleCookie()
+        try:
+            cookie.load(raw)
+        except Exception:
+            return False
+        morsel = cookie.get(SESSION_COOKIE)
+        return bool(morsel and valid_session_value(morsel.value))
+
+    def require_auth(self, parsed) -> bool:
+        if parsed.path in {"/api/health", "/api/session", "/api/login"}:
+            return True
+        if self.is_authenticated():
+            return True
+        if parsed.path.startswith("/api/"):
+            self.send_json({"ok": False, "error": "unauthorized"}, HTTPStatus.UNAUTHORIZED)
+        else:
+            self.serve_login()
+        return False
+
     def read_json_body(self) -> dict:
         raw_len = self.headers.get("Content-Length")
         length = int(raw_len or "0")
@@ -254,7 +337,14 @@ class AppServer(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         parsed = urlparse(self.path)
         if parsed.path == "/api/health":
-            self.send_json({"ok": True, "database": str(self.db_path)})
+            self.send_json({"ok": True})
+            return
+
+        if parsed.path == "/api/session":
+            self.send_json({"authenticated": self.is_authenticated(), "loginRequired": bool(configured_password())})
+            return
+
+        if not self.require_auth(parsed):
             return
 
         key = self.store_key_from_path()
@@ -273,6 +363,9 @@ class AppServer(BaseHTTPRequestHandler):
         self.serve_static(parsed.path)
 
     def do_PUT(self) -> None:
+        parsed = urlparse(self.path)
+        if not self.require_auth(parsed):
+            return
         key = self.store_key_from_path()
         if key is None:
             self.send_text("Not found", HTTPStatus.NOT_FOUND)
@@ -300,6 +393,41 @@ class AppServer(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:
         parsed = urlparse(self.path)
+        if parsed.path == "/api/login":
+            try:
+                password = configured_password()
+                if not password:
+                    self.send_json({"ok": False, "error": "服务端未配置 APP_PASSWORD"}, HTTPStatus.SERVICE_UNAVAILABLE)
+                    return
+                payload = self.read_json_body()
+                submitted = str(payload.get("password") or "")
+                if not hmac.compare_digest(submitted, password):
+                    self.send_json({"ok": False, "error": "密码错误"}, HTTPStatus.UNAUTHORIZED)
+                    return
+                body = json.dumps({"ok": True}, ensure_ascii=False).encode("utf-8")
+                self.send_response(HTTPStatus.OK)
+                self.send_cookie(make_session_value())
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+            except Exception as exc:
+                self.send_json({"ok": False, "error": str(exc)}, HTTPStatus.BAD_REQUEST)
+            return
+
+        if parsed.path == "/api/logout":
+            body = json.dumps({"ok": True}, ensure_ascii=False).encode("utf-8")
+            self.send_response(HTTPStatus.OK)
+            self.clear_cookie()
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+
+        if not self.require_auth(parsed):
+            return
+
         if parsed.path == "/api/llm/deepseek":
             try:
                 payload = self.read_json_body()
@@ -341,6 +469,9 @@ class AppServer(BaseHTTPRequestHandler):
             self.send_json({"ok": False, "error": str(exc)}, HTTPStatus.BAD_REQUEST)
 
     def do_DELETE(self) -> None:
+        parsed = urlparse(self.path)
+        if not self.require_auth(parsed):
+            return
         key = self.store_key_from_path()
         if key is None:
             self.send_text("Not found", HTTPStatus.NOT_FOUND)
@@ -350,7 +481,21 @@ class AppServer(BaseHTTPRequestHandler):
             conn.commit()
         self.send_json({"ok": True})
 
+    def serve_login(self) -> None:
+        target = ROOT / "login.html"
+        if not target.exists():
+            self.send_text("Login page not found", HTTPStatus.INTERNAL_SERVER_ERROR)
+            return
+        body = target.read_bytes()
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
     def serve_static(self, request_path: str) -> None:
+        if request_path in ("/login", "/login.html"):
+            return self.serve_login()
         if request_path in ("", "/"):
             target = ROOT / "index.html"
         else:

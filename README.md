@@ -44,6 +44,8 @@ Required GitHub repository secrets:
 - `DEPLOY_USER`: SSH user, for example `ubuntu`
 - `DEPLOY_SSH_KEY`: private key for SSH login
 - `DEEPSEEK_API_KEY`: DeepSeek API key used by the server-side proxy
+- `APP_PASSWORD`: login password for the web app
+- `APP_SESSION_SECRET`: random string used to sign login sessions
 
 Optional secrets:
 

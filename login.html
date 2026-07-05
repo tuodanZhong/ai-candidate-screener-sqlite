@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>登录 · AI管培生候选人评估系统</title>
+<style>
+  :root {
+    --bg: #f8f8f6;
+    --panel: #ffffff;
+    --text: #121212;
+    --muted: #7b7974;
+    --border: rgba(18,18,18,0.12);
+    --brand: #d97757;
+    --danger: #c0392b;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    min-height: 100%;
+    display: grid;
+    place-items: center;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans SC", sans-serif;
+    padding: 24px;
+  }
+  .login {
+    width: min(420px, 100%);
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 34px 34px 30px;
+    box-shadow: 0 8px 28px rgba(0,0,0,0.06);
+  }
+  h1 {
+    margin: 0;
+    font-size: 24px;
+    font-weight: 500;
+    letter-spacing: 0;
+  }
+  p {
+    margin: 8px 0 24px;
+    color: var(--muted);
+    font-size: 14px;
+    line-height: 1.7;
+  }
+  label {
+    display: block;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 600;
+    margin-bottom: 8px;
+  }
+  input {
+    width: 100%;
+    height: 44px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0 12px;
+    font-size: 16px;
+    font-family: inherit;
+  }
+  input:focus {
+    outline: none;
+    border-color: var(--brand);
+  }
+  button {
+    width: 100%;
+    height: 44px;
+    margin-top: 16px;
+    border: 0;
+    border-radius: 6px;
+    background: var(--text);
+    color: #fff;
+    font-size: 15px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+  }
+  button:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+  .error {
+    display: none;
+    margin-top: 14px;
+    color: var(--danger);
+    font-size: 13px;
+    line-height: 1.6;
+  }
+</style>
+</head>
+<body>
+  <form class="login" id="loginForm">
+    <h1>候选人评估系统</h1>
+    <p>请输入访问密码后继续。</p>
+    <label for="password">访问密码</label>
+    <input id="password" name="password" type="password" autocomplete="current-password" autofocus required>
+    <button id="loginBtn" type="submit">登录</button>
+    <div class="error" id="err"></div>
+  </form>
+<script>
+const form = document.getElementById('loginForm');
+const input = document.getElementById('password');
+const btn = document.getElementById('loginBtn');
+const err = document.getElementById('err');
+
+form.addEventListener('submit', async (ev) => {
+  ev.preventDefault();
+  err.style.display = 'none';
+  btn.disabled = true;
+  btn.textContent = '登录中...';
+  try {
+    const resp = await fetch('/api/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: input.value })
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok || !data.ok) throw new Error(data.error || '登录失败');
+    location.href = '/';
+  } catch (e) {
+    err.textContent = e.message;
+    err.style.display = 'block';
+    input.select();
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '登录';
+  }
+});
+</script>
+</body>
+</html>
