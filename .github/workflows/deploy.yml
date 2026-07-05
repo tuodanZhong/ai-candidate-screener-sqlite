@@ -91,6 +91,12 @@ jobs:
 
           python3 -m py_compile "$DEPLOY_PATH/server.py"
           sudo -n systemctl restart "$SERVICE_NAME"
-          systemctl is-active "$SERVICE_NAME"
+          for i in $(seq 1 20); do
+            if systemctl is-active --quiet "$SERVICE_NAME" && curl -fsS "http://127.0.0.1:${APP_PORT}/api/health"; then
+              exit 0
+            fi
+            sleep 1
+          done
+          systemctl status "$SERVICE_NAME" --no-pager -l
           curl -sS "http://127.0.0.1:${APP_PORT}/api/health"
           REMOTE
