@@ -1,0 +1,1919 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI管培生 · 候选人评估系统</title>
+<style>
+  :root {
+    --bg-000: #ffffff;
+    --bg-100: #f8f8f6;
+    --bg-200: #f4f4f1;
+    --bg-300: #efeeed;
+    --bg-400: #e6e5e0;
+    --text-100: #121212;
+    --text-200: #373734;
+    --text-400: #7b7974;
+    --accent-brand: #d97757;
+    --accent-link: #2977d6;
+    --danger: #c0392b;
+    --warning: #a86b00;
+    --success: #3d7400;
+    --border-light: rgba(18,18,18,0.08);
+    --border-medium: rgba(18,18,18,0.12);
+    --border-strong: rgba(18,18,18,0.18);
+    --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
+    --shadow-md: 0 4px 12px rgba(0,0,0,0.08);
+    --radius-sm: 6px;
+    --radius-md: 12px;
+    --radius-lg: 20px;
+    --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans SC", sans-serif;
+    --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    font-family: var(--font-sans);
+    background: var(--bg-100);
+    color: var(--text-200);
+    line-height: 1.7;
+    -webkit-font-smoothing: antialiased;
+    font-size: 15px;
+  }
+  .app { display: flex; height: 100vh; overflow: hidden; }
+
+  /* ============ 侧栏 ============ */
+  .sidebar {
+    width: 260px; min-width: 260px;
+    background: var(--bg-300);
+    border-right: 1px solid var(--border-light);
+    display: flex; flex-direction: column;
+  }
+  .sidebar-header { padding: 22px 20px 14px; }
+  .sidebar-header h1 { font-size: 17px; font-weight: 600; color: var(--text-100); letter-spacing: -0.01em; }
+  .sidebar-header p { font-size: 12px; color: var(--text-400); margin-top: 2px; }
+	  .add-row { display: flex; gap: 8px; padding: 0 16px 14px; }
+	  .add-row-single .btn { width: 100%; justify-content: center; padding: 8px 14px; }
+	  .add-row-stack { flex-direction: column; }
+	  .add-row-stack .btn { width: 100%; justify-content: center; padding: 8px 14px; }
+	  .add-row input {
+	    flex: 1; min-width: 0; padding: 8px 12px; font-size: 14px;
+	    border: 1px solid var(--border-medium); border-radius: var(--radius-sm);
+	    background: var(--bg-000); color: var(--text-100); font-family: var(--font-sans);
+	  }
+	  .add-row input:focus { outline: none; border-color: var(--border-strong); }
+	  .sidebar-tip { padding: 0 18px 12px; margin-top: -6px; font-size: 11.5px; line-height: 1.5; color: var(--text-400); }
+  .cand-list { flex: 1; overflow-y: auto; padding: 4px 10px 20px; }
+  .cand-item {
+    padding: 10px 12px; border-radius: var(--radius-sm); cursor: pointer;
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    margin-bottom: 2px;
+  }
+	  .cand-item:hover { background: var(--bg-400); }
+	  .cand-item.active { background: var(--bg-000); box-shadow: var(--shadow-sm); }
+	  .cand-item .name { font-size: 14px; color: var(--text-100); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+	  .cand-item .name small { font-size: 11.5px; color: var(--text-400); font-weight: 400; }
+	  .cand-item .school { font-size: 11.5px; color: var(--text-400); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: -2px; }
+	  .cand-item .cand-text { min-width: 0; display: flex; flex-direction: column; }
+  .cand-item .stage-dots { display: flex; gap: 4px; flex-shrink: 0; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--bg-400); border: 1px solid var(--border-medium); }
+  .dot.done { background: var(--success); border-color: var(--success); }
+  .dot.flag { background: var(--warning); border-color: var(--warning); }
+  .dot.bad  { background: var(--danger); border-color: var(--danger); }
+  .cand-item .del { visibility: hidden; color: var(--text-400); font-size: 15px; background: none; border: none; cursor: pointer; padding: 0 2px; line-height: 1; }
+  .cand-item:hover .del { visibility: visible; }
+  .cand-item .del:hover { color: var(--danger); }
+  .engine-box { padding: 12px 16px; border-top: 1px solid var(--border-light); }
+  .engine-box label { font-size: 11px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--text-400); display: block; margin-bottom: 5px; }
+  .engine-box select {
+    width: 100%; padding: 7px 10px; font-size: 13.5px; font-family: var(--font-sans);
+    border: 1px solid var(--border-medium); border-radius: var(--radius-sm);
+    background: var(--bg-000); color: var(--text-100);
+  }
+  .engine-box p { font-size: 11px; color: var(--text-400); margin-top: 5px; line-height: 1.5; }
+  .storage-note { padding: 10px 16px; font-size: 11px; color: var(--text-400); border-top: 1px solid var(--border-light); }
+
+  /* ============ 主区域 ============ */
+  .main { flex: 1; overflow-y: auto; }
+  .main-inner { max-width: 860px; margin: 0 auto; padding: 36px 40px 100px; }
+  .empty-state { text-align: center; padding: 120px 40px; }
+  .empty-state h2 { font-size: clamp(26px, 4vw, 38px); font-weight: 300; color: var(--text-100); letter-spacing: -0.02em; }
+  .empty-state p { color: var(--text-400); max-width: 480px; margin: 14px auto 0; font-size: 15px; }
+
+  .cand-header { margin-bottom: 26px; }
+  .cand-header h2 { font-size: 30px; font-weight: 300; color: var(--text-100); letter-spacing: -0.02em; }
+  .cand-header .meta { font-size: 13px; color: var(--text-400); margin-top: 4px; }
+
+  .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border-medium); margin-bottom: 28px; flex-wrap: wrap; }
+  .tab {
+    padding: 9px 16px; font-size: 14px; color: var(--text-400); cursor: pointer;
+    border: none; background: none; font-family: var(--font-sans);
+    border-bottom: 2px solid transparent; margin-bottom: -1px; display: flex; align-items: center; gap: 6px;
+  }
+  .tab:hover { color: var(--text-100); }
+  .tab.active { color: var(--text-100); font-weight: 600; border-bottom-color: var(--accent-brand); }
+  .tab .tick { font-size: 11px; color: var(--success); }
+
+  .card {
+    background: var(--bg-000); border: 1px solid var(--border-light);
+    border-radius: var(--radius-md); padding: 26px 28px; margin-bottom: 18px;
+  }
+  .card h3 { font-size: 17px; font-weight: 600; color: var(--text-100); margin-bottom: 6px; }
+  .card .hint { font-size: 13px; color: var(--text-400); margin-bottom: 14px; }
+  textarea {
+    width: 100%; min-height: 200px; padding: 14px 16px; font-size: 14px; line-height: 1.7;
+    border: 1px solid var(--border-medium); border-radius: var(--radius-sm);
+    background: var(--bg-000); color: var(--text-100); font-family: var(--font-sans); resize: vertical;
+  }
+  textarea:focus { outline: none; border-color: var(--border-strong); box-shadow: var(--shadow-sm); }
+  textarea.short { min-height: 90px; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 9px 20px; font-size: 14px; font-weight: 500; font-family: var(--font-sans);
+    border-radius: var(--radius-sm); cursor: pointer; border: 1px solid transparent;
+  }
+  .btn-primary { background: var(--text-100); color: #fff; }
+  .btn-primary:hover { background: #2c2c2a; }
+  .btn-secondary { background: var(--bg-000); color: var(--text-100); border-color: var(--border-medium); }
+  .btn-secondary:hover { border-color: var(--border-strong); }
+  .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+  .btn-row { display: flex; gap: 10px; margin-top: 14px; align-items: center; flex-wrap: wrap; }
+  .spinner {
+    width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.35); border-top-color: #fff;
+    border-radius: 50%; animation: spin 0.7s linear infinite; display: inline-block;
+  }
+  .btn-secondary .spinner { border-color: rgba(18,18,18,0.2); border-top-color: var(--text-100); }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .error-box {
+    background: rgba(192,57,43,0.06); border: 1px solid rgba(192,57,43,0.25);
+    color: var(--danger); padding: 12px 16px; border-radius: var(--radius-sm); font-size: 13px; margin-top: 14px;
+    white-space: pre-wrap;
+  }
+
+  /* ============ 结果展示 ============ */
+  .tag { display: inline-block; padding: 3px 12px; border-radius: 100px; font-size: 12.5px; font-weight: 600; letter-spacing: 0.02em; }
+  .tag-good { background: rgba(61,116,0,0.1); color: var(--success); }
+  .tag-mid  { background: rgba(168,107,0,0.1); color: var(--warning); }
+  .tag-bad  { background: rgba(192,57,43,0.08); color: var(--danger); }
+  .tag-neutral { background: var(--bg-200); color: var(--text-400); }
+
+  .result-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+  .result-header h4 { font-size: 15px; font-weight: 600; color: var(--text-100); }
+  .result-summary { font-size: 14.5px; color: var(--text-200); margin-bottom: 20px; padding: 14px 16px; background: var(--bg-200); border-radius: var(--radius-sm); }
+
+  .dim-row { padding: 14px 0; border-bottom: 1px solid var(--border-light); }
+  .dim-row:last-child { border-bottom: none; }
+  .dim-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .dim-name { font-size: 14.5px; font-weight: 600; color: var(--text-100); }
+  .score-wrap { display: flex; align-items: center; gap: 10px; }
+  .score-num { font-size: 20px; font-weight: 300; color: var(--text-100); min-width: 42px; text-align: right; }
+  .score-num small { font-size: 12px; color: var(--text-400); font-weight: 400; }
+  .score-bar { width: 110px; height: 5px; background: var(--bg-300); border-radius: 3px; overflow: hidden; }
+  .score-fill { height: 100%; border-radius: 3px; background: var(--accent-brand); }
+  .evidence { margin-top: 8px; }
+  .evidence li { font-size: 13.5px; color: var(--text-200); margin-left: 18px; margin-bottom: 3px; }
+  .evidence li.concern { color: var(--warning); }
+  .evidence li.neg { color: var(--danger); }
+  .evidence li.pos { color: var(--success); }
+
+  .material-overview { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 16px 0 8px; }
+  .dim-tile {
+    border: 1px solid var(--border-light); border-radius: var(--radius-sm);
+    background: var(--bg-000); overflow: hidden;
+  }
+  .dim-tile summary {
+    list-style: none; cursor: pointer; padding: 12px 13px;
+    display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center;
+  }
+  .dim-tile summary::-webkit-details-marker { display: none; }
+  .dim-tile summary::after {
+    content: '展开'; grid-column: 1 / -1; font-size: 11.5px; color: var(--text-400);
+  }
+  .dim-tile[open] summary::after { content: '收起'; }
+  .dim-tile-name { min-width: 0; font-size: 13.5px; font-weight: 600; color: var(--text-100); line-height: 1.35; }
+  .dim-tile-score { font-size: 22px; font-weight: 300; color: var(--text-100); white-space: nowrap; }
+  .dim-tile-score small { font-size: 11px; color: var(--text-400); }
+  .dim-tile-bar { grid-column: 1 / -1; height: 4px; border-radius: 3px; background: var(--bg-300); overflow: hidden; }
+  .dim-tile-fill { display: block; height: 100%; background: var(--accent-brand); border-radius: 3px; }
+  .dim-tile-body { padding: 0 13px 12px; border-top: 1px solid var(--border-light); }
+  .dim-tile-body ul { margin-top: 9px; }
+  .dim-tile-body li { font-size: 12.8px; line-height: 1.5; color: var(--text-200); margin-left: 17px; margin-bottom: 4px; }
+  .dim-tile-body li.concern { color: var(--warning); }
+  .gate-strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; margin: 14px 0 4px; }
+  .gate-chip {
+    border: 1px solid var(--border-light); border-radius: var(--radius-sm);
+    padding: 10px 12px; background: var(--bg-000);
+  }
+  .gate-chip .gate-top { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+  .gate-chip .gate-name { font-size: 13px; font-weight: 600; color: var(--text-100); }
+  .gate-chip .gate-note { font-size: 12.2px; line-height: 1.45; color: var(--text-400); margin-top: 5px; }
+  .gate-pass { border-color: rgba(61,116,0,0.25); background: rgba(61,116,0,0.04); }
+  .gate-risk { border-color: rgba(168,107,0,0.25); background: rgba(168,107,0,0.04); }
+  .gate-fail { border-color: rgba(192,57,43,0.28); background: rgba(192,57,43,0.04); }
+  .fold-block { border-top: 1px solid var(--border-light); margin-top: 16px; padding-top: 12px; }
+  .fold-block summary { cursor: pointer; font-size: 13.5px; font-weight: 600; color: var(--text-100); }
+  .fold-block .section-label { margin-top: 12px; }
+  .quiet-edit {
+    border: 1px dashed var(--border-medium); border-radius: var(--radius-sm);
+    background: var(--bg-100); margin-bottom: 18px;
+  }
+  .quiet-edit summary { cursor: pointer; padding: 12px 14px; font-size: 13px; color: var(--text-400); }
+  .quiet-edit .card { border: none; border-top: 1px solid var(--border-light); border-radius: 0; margin-bottom: 0; background: transparent; }
+
+  .profile-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 18px; }
+  .profile-item { border: 1px solid var(--border-light); border-radius: var(--radius-sm); padding: 12px 14px; background: var(--bg-000); }
+  .profile-item .label { font-size: 11.5px; color: var(--text-400); margin-bottom: 4px; }
+  .profile-item .value { font-size: 15px; color: var(--text-100); font-weight: 600; }
+  .stage-board { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; margin-top: 12px; }
+  .stage-card { border: 1px solid var(--border-light); border-radius: var(--radius-sm); padding: 13px 14px; background: var(--bg-000); }
+  .stage-card .stage-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .stage-card .stage-title { font-size: 13.5px; font-weight: 600; color: var(--text-100); }
+  .stage-card .stage-summary { font-size: 12.8px; line-height: 1.5; color: var(--text-400); }
+  .next-step { display: flex; justify-content: space-between; align-items: center; gap: 14px; padding: 14px 16px; background: var(--bg-200); border-radius: var(--radius-sm); margin-bottom: 18px; }
+  .next-step .k { font-size: 12px; color: var(--text-400); }
+  .next-step .v { font-size: 17px; font-weight: 600; color: var(--text-100); }
+
+  .section-label { font-size: 11.5px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-400); margin: 22px 0 10px; }
+  .q-list li { font-size: 14px; color: var(--text-200); margin-left: 18px; margin-bottom: 8px; }
+  .q-list li .purpose { display: block; font-size: 12.5px; color: var(--text-400); }
+  .flag-list li { font-size: 13.5px; margin-left: 18px; margin-bottom: 5px; }
+
+  .upload-zone {
+    border: 1.5px dashed var(--border-medium); border-radius: var(--radius-sm);
+    padding: 22px 16px; text-align: center; cursor: pointer; background: var(--bg-100);
+  }
+  .upload-zone:hover { border-color: var(--accent-brand); background: var(--bg-200); }
+  .file-chip {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    background: var(--bg-200); border: 1px solid var(--border-light); border-radius: var(--radius-sm);
+    padding: 8px 12px; margin-top: 8px; font-size: 13.5px; color: var(--text-100);
+  }
+  .file-chip small { color: var(--text-400); margin-left: 6px; }
+  .file-chip button { background: none; border: none; cursor: pointer; color: var(--text-400); font-size: 16px; line-height: 1; padding: 0 2px; }
+  .file-chip button:hover { color: var(--danger); }
+
+  .check-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; font-size: 14px; color: var(--text-200); }
+  .check-row input[type=checkbox] { width: 16px; height: 16px; accent-color: var(--accent-brand); }
+  .wc-display { font-size: 13px; color: var(--text-400); }
+  .wc-display b { color: var(--text-100); font-weight: 600; }
+  .wc-display .ok { color: var(--success); } .wc-display .no { color: var(--danger); }
+
+  .edu-verdict { border-radius: var(--radius-sm); padding: 14px 16px; margin-bottom: 18px; border: 1px solid var(--border-medium); }
+  .edu-pass { background: rgba(61,116,0,0.06); border-color: rgba(61,116,0,0.3); }
+  .edu-fail { background: rgba(192,57,43,0.06); border-color: rgba(192,57,43,0.35); }
+  .edu-unk  { background: rgba(168,107,0,0.06); border-color: rgba(168,107,0,0.3); }
+  .edu-head { display: flex; align-items: center; gap: 10px; font-size: 15px; font-weight: 600; color: var(--text-100); }
+  .edu-mark { font-size: 18px; font-weight: 700; }
+  .edu-pass .edu-mark { color: var(--success); }
+  .edu-fail .edu-mark { color: var(--danger); }
+  .edu-unk .edu-mark { color: var(--warning); }
+  .edu-list { margin: 10px 0 6px; }
+  .edu-list li { font-size: 13.5px; color: var(--text-200); margin-left: 18px; margin-bottom: 3px; }
+  .edu-note { font-size: 12px; color: var(--text-400); margin-top: 6px; }
+  .hard-req { display: flex; align-items: baseline; gap: 10px; padding: 7px 0; font-size: 14px; border-bottom: 1px solid var(--border-light); }
+  .hard-req:last-child { border-bottom: none; }
+  .hr-mark { font-weight: 700; min-width: 18px; }
+  .hr-mark.pass { color: var(--success); } .hr-mark.fail { color: var(--danger); } .hr-mark.unk { color: var(--warning); }
+
+  .final-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px; margin-bottom: 8px; }
+  .final-stat { background: var(--bg-200); border-radius: var(--radius-sm); padding: 14px 16px; }
+  .final-stat .v { font-size: 26px; font-weight: 300; color: var(--text-100); }
+  .final-stat .l { font-size: 12px; color: var(--text-400); }
+  .stale-note { font-size: 12.5px; color: var(--warning); margin-top: 10px; }
+
+  @media (max-width: 768px) {
+    .app { flex-direction: column; }
+    .sidebar { width: 100%; min-width: 0; max-height: 40vh; }
+    .main-inner { padding: 24px 18px 80px; }
+    .material-overview { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+
+  @media (max-width: 520px) {
+    .material-overview { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <h1>候选人评估系统</h1>
+      <p>AI产品体验官（实习/管培）</p>
+    </div>
+    <div class="add-row add-row-single">
+      <button class="btn btn-primary" onclick="addCandidate()">新增候选人</button>
+    </div>
+    <div class="sidebar-tip">进入候选人页后上传简历和项目材料，系统会自动识别姓名。</div>
+    <div class="cand-list" id="candList"></div>
+    <div class="engine-box">
+      <label for="engineSel">评估引擎</label>
+      <select id="engineSel" onchange="changeEngine(this.value)">
+        <option value="deepseek">DeepSeek（默认）</option>
+        <option value="claude">Claude</option>
+      </select>
+      <p>简历带文件、项目联网查看时自动使用Claude</p>
+    </div>
+    <div class="storage-note" id="storageNote">数据存储加载中…</div>
+  </aside>
+  <main class="main"><div class="main-inner" id="mainArea"></div></main>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js"></script>
+<script>
+if (window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  /* ================================================================
+   数据层：优先使用本地 SQLite API，失败时降级到 window.storage/localStorage/内存
+================================================================ */
+const IDX_KEY = 'screener:index';
+const API_BASE = '';
+let memStore = {};
+let storageMode = 'memory';
+
+async function detectStorageMode() {
+  try {
+    const resp = await fetch(API_BASE + '/api/health', { cache: 'no-store' });
+    if (resp.ok) return 'sqlite';
+  } catch(e) {}
+  if (window.storage && window.storage.get) return 'window.storage';
+  try {
+    const k = '__screener_storage_test__';
+    localStorage.setItem(k, '1');
+    localStorage.removeItem(k);
+    return 'localStorage';
+  } catch(e) {}
+  return 'memory';
+}
+
+async function stGet(key) {
+  if (storageMode === 'sqlite') {
+    try {
+      const resp = await fetch(API_BASE + '/api/store/' + encodeURIComponent(key), { cache: 'no-store' });
+      if (resp.ok) { const r = await resp.json(); return r.value || null; }
+    } catch(e) {}
+  }
+  if (storageMode === 'window.storage') { try { const r = await window.storage.get(key, true); return r ? r.value : null; } catch(e) { return null; } }
+  if (storageMode === 'localStorage') { try { return localStorage.getItem(key); } catch(e) { return null; } }
+  return memStore[key] || null;
+}
+async function stSet(key, val) {
+  if (storageMode === 'sqlite') {
+    const resp = await fetch(API_BASE + '/api/store/' + encodeURIComponent(key), {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ value: val })
+    });
+    if (!resp.ok) {
+      const t = await resp.text();
+      throw new Error('SQLite保存失败：' + t.slice(0, 200));
+    }
+    return;
+  }
+  if (storageMode === 'window.storage') { try { await window.storage.set(key, val, true); return; } catch(e) {} }
+  if (storageMode === 'localStorage') { try { localStorage.setItem(key, val); return; } catch(e) { throw new Error('浏览器本地存储失败：' + e.message); } }
+  memStore[key] = val;
+}
+async function stDel(key) {
+  if (storageMode === 'sqlite') {
+    await fetch(API_BASE + '/api/store/' + encodeURIComponent(key), { method: 'DELETE' });
+    return;
+  }
+  if (storageMode === 'window.storage') { try { await window.storage.delete(key, true); return; } catch(e) {} }
+  if (storageMode === 'localStorage') { try { localStorage.removeItem(key); return; } catch(e) {} }
+  delete memStore[key];
+}
+
+let index = [];          // [{id, name}]
+let current = null;      // 当前候选人完整对象
+let activeTab = 'resume';
+
+function pendingCandidateName() {
+  const d = new Date();
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mm = String(d.getMinutes()).padStart(2, '0');
+  return '待识别候选人 ' + hh + ':' + mm;
+}
+
+function isPendingName(name) {
+  return !name || /^待识别候选人/.test(String(name));
+}
+
+function cleanDetectedName(name) {
+  if (!name) return '';
+  const n = String(name).replace(/[：:，,。；;\s]+$/g, '').trim();
+  if (!n || /无法判断|未知|未提取|无相关信息|候选人/.test(n)) return '';
+  if (n.length > 20) return '';
+  return n;
+}
+
+function cleanDetectedSchool(name) {
+  if (!name) return '';
+  const s = String(name).replace(/[：:，,。；;\s]+$/g, '').trim();
+  if (!s || /无法判断|未知|未提取|无相关信息/.test(s)) return '';
+  return s.length > 30 ? s.slice(0, 30) : s;
+}
+
+function detectSchool(result) {
+  const education = result && Array.isArray(result.education) ? result.education : [];
+  const relevant = education.find(e => e && /本科|硕士|博士|研究生/.test(e.level || '') && e.school) ||
+    education.find(e => e && e.school);
+  return cleanDetectedSchool(relevant && relevant.school);
+}
+
+function normalizeGender(v) {
+  const s = String(v || '').trim();
+  if (/^男/.test(s)) return '男';
+  if (/^女/.test(s)) return '女';
+  return '';
+}
+
+function detectEducationStage(result) {
+  const explicit = String(result && (result.educationStage || result.currentEducationStage || '') || '').trim();
+  if (/博士|硕士|研究生/.test(explicit)) return '研究生';
+  if (/本科|学士/.test(explicit)) return '本科';
+  const education = result && Array.isArray(result.education) ? result.education : [];
+  return education.some(e => /博士|硕士|研究生/.test((e && e.level) || '')) ? '研究生' :
+    (education.some(e => /本科|学士/.test((e && e.level) || '')) ? '本科' : '');
+}
+
+function detectGraduationYear(result) {
+  const explicit = String(result && (result.graduationYear || result.gradYear || '') || '').match(/20\d{2}/);
+  if (explicit) return explicit[0];
+  const education = result && Array.isArray(result.education) ? result.education : [];
+  const years = [];
+  for (const e of education) {
+    const matches = String((e && e.period) || '').match(/20\d{2}/g) || [];
+    for (const y of matches) years.push(Number(y));
+  }
+  const futureOrRecent = years.filter(y => y >= 2024 && y <= 2035);
+  const pool = futureOrRecent.length ? futureOrRecent : years;
+  return pool.length ? String(Math.max(...pool)) : '';
+}
+
+async function applyDetectedProfile(result) {
+  if (!current || !result) return false;
+  const detected = cleanDetectedName(result.candidateName || result.name || (result.basicInfo && result.basicInfo.name));
+  const school = detectSchool(result);
+  const gender = normalizeGender(result.gender || result.sex || (result.basicInfo && result.basicInfo.gender));
+  const educationStage = detectEducationStage(result);
+  const graduationYear = detectGraduationYear(result);
+  let changed = false;
+  if (detected) {
+    const canRename = isPendingName(current.name) || current.nameStatus === 'resume-detected';
+    if (canRename && current.name !== detected) {
+      current.name = detected;
+      current.nameStatus = 'resume-detected';
+      current.nameUpdatedAt = new Date().toISOString();
+      changed = true;
+    }
+  }
+  if (school && current.school !== school) {
+    current.school = school;
+    current.schoolUpdatedAt = new Date().toISOString();
+    changed = true;
+  }
+  if (gender && current.gender !== gender) {
+    current.gender = gender;
+    changed = true;
+  }
+  if (educationStage && current.educationStage !== educationStage) {
+    current.educationStage = educationStage;
+    changed = true;
+  }
+  if (graduationYear && current.graduationYear !== graduationYear) {
+    current.graduationYear = graduationYear;
+    changed = true;
+  }
+  if (!changed) return false;
+  const item = index.find(x => x.id === current.id);
+  if (item) {
+    item.name = current.name;
+    if (current.school) item.school = current.school;
+    if (current.gender) item.gender = current.gender;
+    if (current.educationStage) item.educationStage = current.educationStage;
+    if (current.graduationYear) item.graduationYear = current.graduationYear;
+  }
+  await saveIndex();
+  return true;
+}
+
+function newCandidate(name) {
+  const displayName = name || pendingCandidateName();
+  return {
+    id: 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2,6),
+    name: displayName,
+    nameStatus: name ? 'manual' : 'pending',
+    persisted: false,
+    createdAt: new Date().toISOString(),
+    stages: {
+      material:  { result: null, at: null },
+      resume:    { input: '', result: null, at: null },
+      project:   { input: '', notes: '', result: null, at: null },
+      interview: { input: '', outline: null, result: null, at: null },
+      trial:     { input: '', checks: { deadline: false, screenshots: false, format: false }, result: null, at: null },
+      final:     { result: null, at: null }
+    }
+  };
+}
+
+async function saveIndex() { await stSet(IDX_KEY, JSON.stringify(index)); }
+async function saveCurrent() {
+  if (!current || current.persisted === false) return;
+  await stSet('screener:cand:' + current.id, JSON.stringify(current));
+}
+async function ensureCurrentPersisted() {
+  if (!current || current.persisted !== false) return;
+  current.persisted = true;
+  if (!index.some(x => x.id === current.id)) {
+    index.unshift({
+      id: current.id,
+      name: current.name,
+      school: current.school || '',
+      gender: current.gender || '',
+      educationStage: current.educationStage || '',
+      graduationYear: current.graduationYear || ''
+    });
+  }
+  await saveIndex();
+  await saveCurrent();
+}
+function fileStoreKey(id) { return 'screener:files:' + id; }
+async function loadCandidateFiles(id) {
+  if (memFiles[id]) return memFiles[id];
+  try {
+    const raw = await stGet(fileStoreKey(id));
+    memFiles[id] = raw ? JSON.parse(raw) : [];
+  } catch(e) {
+    memFiles[id] = [];
+  }
+  return memFiles[id];
+}
+async function saveCandidateFiles(id) {
+  if (current && current.id === id && current.persisted === false) return;
+  await stSet(fileStoreKey(id), JSON.stringify(filesOf(id)));
+}
+
+async function init() {
+  storageMode = await detectStorageMode();
+  const note = document.getElementById('storageNote');
+  if (storageMode === 'sqlite') {
+    note.textContent = '数据已保存到本地 SQLite 数据库（含候选人、各阶段输入/结果、简历文件）。';
+  } else if (storageMode === 'window.storage') {
+    note.textContent = '数据已保存到 Claude window.storage；建议使用 SQLite 版本保存全部附件。';
+  } else if (storageMode === 'localStorage') {
+    note.textContent = '数据保存到当前浏览器 localStorage；附件较大时建议改用 SQLite 版本。';
+  } else {
+    note.textContent = '⚠ 当前环境无持久化存储，数据仅保存在本次会话内存中。';
+  }
+  await loadSettings();
+  try {
+    const raw = await stGet(IDX_KEY);
+    index = raw ? JSON.parse(raw) : [];
+  } catch(e) { index = []; }
+  renderSidebar();
+  renderMain();
+}
+
+async function addCandidate() {
+  const c = newCandidate();
+  memFiles[c.id] = [];
+  current = c; activeTab = 'resume';
+  renderSidebar(); renderMain();
+}
+
+async function openCandidate(id) {
+  const raw = await stGet('screener:cand:' + id);
+  if (!raw) return;
+  current = JSON.parse(raw);
+  if (!current.stages.material) current.stages.material = { result: null, at: null };
+  const item = index.find(x => x.id === current.id);
+  if (item) {
+    let changed = false;
+    ['school','gender','educationStage','graduationYear'].forEach(k => {
+      if (current[k] && item[k] !== current[k]) { item[k] = current[k]; changed = true; }
+    });
+    if (changed) await saveIndex();
+  }
+  await loadCandidateFiles(id);
+  activeTab = hasAnyEvaluation(current.stages) ? 'overview' : 'resume';
+  renderSidebar(); renderMain();
+}
+
+async function deleteCandidate(id, ev) {
+  ev.stopPropagation();
+  if (!confirm('确定删除该候选人及全部评估记录？此操作不可恢复。')) return;
+  index = index.filter(x => x.id !== id);
+  await saveIndex();
+  await stDel('screener:cand:' + id);
+  await stDel(fileStoreKey(id));
+  delete memFiles[id];
+  if (current && current.id === id) current = null;
+  renderSidebar(); renderMain();
+}
+
+/* ================================================================
+   API 调用层
+================================================================ */
+/* ---------- 211/985 高校名单（已固化，不随双一流调整变动） ---------- */
+const UNIV_211 = ['中国地质大学','中国石油大学','清华大学','北京大学','中国人民大学','北京航空航天大学','北京理工大学','北京科技大学','北京化工大学','北京邮电大学','中国农业大学','北京林业大学','北京中医药大学','北京师范大学','北京外国语大学','中国传媒大学','中央财经大学','对外经济贸易大学','北京体育大学','中央音乐学院','中央民族大学','中国政法大学','华北电力大学','华北电力大学(保定)','中国石油大学(北京)','中国地质大学(北京)','中国矿业大学(北京)','南开大学','天津大学','天津医科大学','大连理工大学','东北大学','辽宁大学','大连海事大学','吉林大学','东北师范大学','延边大学','哈尔滨工业大学','哈尔滨工程大学','东北农业大学','东北林业大学','复旦大学','上海交通大学','同济大学','华东师范大学','东华大学','上海大学','上海财经大学','上海外国语大学','华东理工大学','第二军医大学','海军军医大学','南京大学','东南大学','南京农业大学','南京航空航天大学','中国矿业大学','中国药科大学','河海大学','南京师范大学','南京理工大学','苏州大学','江南大学','浙江大学','中国科学技术大学','合肥工业大学','安徽大学','厦门大学','福州大学','南昌大学','山东大学','中国海洋大学','中国石油大学(华东)','武汉大学','华中科技大学','中国地质大学(武汉)','华中农业大学','华中师范大学','武汉理工大学','中南财经政法大学','湖南大学','中南大学','湖南师范大学','国防科技大学','国防科学技术大学','中山大学','华南理工大学','华南师范大学','暨南大学','广西大学','海南大学','四川大学','电子科技大学','西南交通大学','西南财经大学','四川农业大学','重庆大学','西南大学','云南大学','贵州大学','西安交通大学','西北工业大学','西北农林科技大学','陕西师范大学','西安电子科技大学','西北大学','长安大学','第四军医大学','空军军医大学','兰州大学','新疆大学','石河子大学','内蒙古大学','郑州大学','太原理工大学','河北工业大学','宁夏大学','青海大学','西藏大学'];
+
+/* ---------- 评估引擎：DeepSeek（默认，纯文本） ---------- */
+let settings = { engine: 'deepseek' };
+
+async function loadSettings() {
+  try { const raw = await stGet('screener:settings'); if (raw) settings = JSON.parse(raw); } catch(e) {}
+  const sel = document.getElementById('engineSel');
+  if (sel) sel.value = settings.engine;
+}
+async function changeEngine(v) { settings.engine = v; await stSet('screener:settings', JSON.stringify(settings)); }
+
+async function callDeepSeek(systemPrompt, userText) {
+  let resp;
+  try {
+    resp = await fetch('/api/llm/deepseek', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: 'deepseek-chat',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userText }
+      ],
+      response_format: { type: 'json_object' },
+      max_tokens: 4000,
+      temperature: 0.3
+    })
+  });
+  } catch (e) {
+    throw new Error('DeepSeek接口网络请求失败（' + e.message + '）。请确认服务端已配置 DEEPSEEK_API_KEY。');
+  }
+  if (!resp.ok) {
+    const t = await resp.text();
+    throw new Error('DeepSeek API请求失败 (' + resp.status + ')：' + t.slice(0, 300) +
+      (resp.status === 401 ? '\n（key无效或已作废，请更换）' : ''));
+  }
+  const data = await resp.json();
+  if (!data.choices || !data.choices[0]) throw new Error('DeepSeek返回格式异常');
+  return data.choices[0].message.content;
+}
+
+/**
+ * 统一入口：根据设置和任务特性路由到 DeepSeek 或 Claude。
+ * 自动切换Claude的情况：①内容含PDF/图片（DeepSeek不支持读文件）②需要联网搜索（项目阶段）。
+ */
+async function callLLM(systemPrompt, content, opts) {
+  opts = opts || {};
+  const hasBlocks = Array.isArray(content);
+  const hasFiles = hasBlocks && content.some(b => b.type === 'document' || b.type === 'image');
+  const useDS = settings.engine === 'deepseek' && !opts.webSearch && !hasFiles;
+  if (useDS) {
+    const text = hasBlocks ? content.filter(b => b.type === 'text').map(b => b.text).join('\n') : content;
+    return { text: await callDeepSeek(systemPrompt, text), engine: 'DeepSeek' };
+  }
+  let label = 'Claude';
+  if (settings.engine === 'deepseek') {
+    if (hasFiles) label = 'Claude（含文件，自动切换）';
+    else if (opts.webSearch) label = 'Claude（需联网，自动切换）';
+  } else if (opts.webSearch) label = 'Claude（联网）';
+  return { text: await callClaude(systemPrompt, content, opts.webSearch), engine: label };
+}
+
+async function callClaude(systemPrompt, userContent, useWebSearch) {
+  // userContent 可以是字符串，也可以是内容块数组（含 document/image 块）
+  const body = {
+    model: 'claude-sonnet-4-6',
+    max_tokens: 1000,
+    system: systemPrompt,
+    messages: [{ role: 'user', content: userContent }]
+  };
+  if (useWebSearch) body.tools = [{ type: 'web_search_20250305', name: 'web_search' }];
+  let resp;
+  try {
+    resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+  } catch (e) {
+    throw new Error('Claude接口网络请求被拦截（' + e.message + '）。最常见原因：本应用不是在 Claude 中打开的。内置Claude接口只在 claude.ai / Claude App 的应用环境中可用——请回到 Claude 对话里打开本应用，不要下载HTML后本地双击打开（左下角若显示"无持久化存储"警告即说明环境不对）。其他可能：网络波动，可重试。');
+  }
+  if (!resp.ok) {
+    const t = await resp.text();
+    throw new Error('API请求失败 (' + resp.status + ')：' + t.slice(0, 300));
+  }
+  const data = await resp.json();
+  const texts = (data.content || []).filter(b => b.type === 'text').map(b => b.text);
+  return texts.join('\n');
+}
+
+/* ---------- 简历文件（PDF/图片）：仅存于内存，评估结果持久化 ---------- */
+const memFiles = {}; // { candidateId: [{name, size, media_type, kind:'pdf'|'image', data(base64)}] }
+const ACCEPTED_IMG = ['image/jpeg','image/png','image/gif','image/webp'];
+
+function filesOf(id) { if (!memFiles[id]) memFiles[id] = []; return memFiles[id]; }
+
+function readFileB64(file) {
+  return new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = () => res(r.result.split(',')[1]);
+    r.onerror = () => rej(new Error('文件读取失败：' + file.name));
+    r.readAsDataURL(file);
+  });
+}
+
+async function extractPdfText(file) {
+  if (!window.pdfjsLib) throw new Error('pdf.js 未加载');
+  const buf = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+  const out = [];
+  const n = Math.min(pdf.numPages, 20);
+  for (let i = 1; i <= n; i++) {
+    const page = await pdf.getPage(i);
+    const tc = await page.getTextContent();
+    out.push(tc.items.map(it => it.str).join(' '));
+  }
+  return out.join('\n\n');
+}
+
+async function onResumeFiles(input) {
+  clearError('resumeErr');
+  const list = filesOf(current.id);
+  for (const f of Array.from(input.files)) {
+    if (f.type === 'application/pdf') {
+      if (f.size > 20 * 1024 * 1024) { showError('resumeErr', f.name + ' 超过20MB，请压缩后重试。'); continue; }
+      // 优先本地提取文字层：体积小、可持久保存、可走DeepSeek
+      let text = null;
+      try { text = await extractPdfText(f); } catch(e) { text = null; }
+      const data = await readFileB64(f);
+      if (text && text.replace(/\s+/g, '').length > 200) {
+        list.push({ name: f.name, size: f.size, media_type: 'application/pdf', kind: 'pdf-text', text: text, data: data });
+      } else {
+        // 无文字层（扫描件）→ 保留原文件走Claude视觉通道
+        list.push({ name: f.name, size: f.size, media_type: 'application/pdf', kind: 'pdf', data: data });
+      }
+    } else if (ACCEPTED_IMG.includes(f.type)) {
+      if (f.size > 5 * 1024 * 1024) { showError('resumeErr', f.name + ' 图片超过5MB，请压缩后重试。'); continue; }
+      list.push({ name: f.name, size: f.size, media_type: f.type, kind: 'image', data: await readFileB64(f) });
+    } else {
+      showError('resumeErr', f.name + '：仅支持 PDF 和 JPG/PNG/GIF/WebP 图片。');
+    }
+  }
+  input.value = '';
+  current.stages.resume.fileMeta = list.map(x => ({ name: x.name, size: x.size, kind: x.kind, media_type: x.media_type || null, text: x.text || null, hasOriginal: !!x.data }));
+  if (list.length) await ensureCurrentPersisted();
+  await saveCandidateFiles(current.id);
+  await saveCurrent();
+  renderMain();
+}
+
+async function removeResumeFile(i) {
+  filesOf(current.id).splice(i, 1);
+  current.stages.resume.fileMeta = filesOf(current.id).map(x => ({ name: x.name, size: x.size, kind: x.kind, media_type: x.media_type || null, text: x.text || null, hasOriginal: !!x.data }));
+  await saveCandidateFiles(current.id);
+  await saveCurrent();
+  renderMain();
+}
+
+function resumeFileUrl(f) {
+  if (!f || !f.data) return '';
+  return 'data:' + (f.media_type || 'application/octet-stream') + ';base64,' + f.data;
+}
+
+function openResumeFile(i) {
+  const f = filesOf(current.id)[i];
+  const url = resumeFileUrl(f);
+  if (!url) { showError('resumeErr', '这个文件是旧版本保存的文字摘要，没有原始文件可查看；请重新上传简历后保存。'); return; }
+  const win = window.open(url, '_blank');
+  if (!win) showError('resumeErr', '浏览器拦截了新窗口，请允许弹窗后重试，或使用下载。');
+}
+
+function downloadResumeFile(i) {
+  const f = filesOf(current.id)[i];
+  const url = resumeFileUrl(f);
+  if (!url) { showError('resumeErr', '这个文件是旧版本保存的文字摘要，没有原始文件可下载；请重新上传简历后保存。'); return; }
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = f.name || 'resume-file';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+
+function readFileText(file) {
+  return new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = () => res(r.result || '');
+    r.onerror = () => rej(new Error('文件读取失败：' + file.name));
+    r.readAsText(file, 'utf-8');
+  });
+}
+
+function normalizeExtractedText(text) {
+  return String(text || '').replace(/\u0000/g, '').replace(/[ \t\r\f\v]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
+}
+
+async function extractDocxText(file) {
+  if (!window.mammoth) throw new Error('Word解析组件未加载，请刷新页面后重试。');
+  const result = await window.mammoth.extractRawText({ arrayBuffer: await file.arrayBuffer() });
+  return normalizeExtractedText(result.value || '');
+}
+
+async function extractLegacyDocText(file) {
+  const buf = await file.arrayBuffer();
+  const bytes = new Uint8Array(buf);
+  let ascii = '';
+  for (const b of bytes) ascii += (b >= 32 && b <= 126) || b === 10 || b === 13 || b === 9 ? String.fromCharCode(b) : ' ';
+  const utf16 = new TextDecoder('utf-16le', { fatal: false }).decode(buf);
+  const cleanAscii = normalizeExtractedText(ascii.replace(/\s{2,}/g, ' '));
+  const cleanUtf16 = normalizeExtractedText(utf16.replace(/[^\u4e00-\u9fa5A-Za-z0-9，。！？、；：“”‘’（）《》,.!?;:'"()\-\s]/g, ' '));
+  return cleanUtf16.replace(/\s+/g, '').length > cleanAscii.replace(/\s+/g, '').length ? cleanUtf16 : cleanAscii;
+}
+
+async function onTrialFile(input) {
+  clearError('trialErr');
+  const st = current.stages.trial;
+  const texts = [];
+  const metas = [];
+  for (const f of Array.from(input.files)) {
+    if (f.size > 20 * 1024 * 1024) { showError('trialErr', f.name + ' 超过20MB，请压缩或拆分后重试。'); continue; }
+    try {
+      let text = '';
+      if (f.type === 'application/pdf' || /\.pdf$/i.test(f.name)) {
+        text = await extractPdfText(f);
+        if (!text || text.replace(/\s+/g, '').length < 200) {
+          showError('trialErr', f.name + ' 未提取到足够文字。请从飞书导出为带文字层的PDF，或直接粘贴正文。');
+          continue;
+        }
+      } else if (/\.txt$|\.md$|\.markdown$/i.test(f.name) || /^text\//.test(f.type)) {
+        text = await readFileText(f);
+      } else if (/\.docx$/i.test(f.name) || f.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+        text = await extractDocxText(f);
+        if (!text || text.replace(/\s+/g, '').length < 200) {
+          showError('trialErr', f.name + ' 未提取到足够正文。请确认不是空文档，或导出为PDF后重试。');
+          continue;
+        }
+      } else if (/\.doc$/i.test(f.name) || f.type === 'application/msword') {
+        text = await extractLegacyDocText(f);
+        if (!text || text.replace(/\s+/g, '').length < 200) {
+          showError('trialErr', f.name + ' 是旧版Word格式，未能可靠提取正文。建议另存为DOCX或导出PDF后上传。');
+          continue;
+        }
+      } else {
+        showError('trialErr', f.name + '：试稿上传目前支持 DOC、DOCX、PDF、TXT、Markdown。飞书文档建议先导出为PDF或DOCX后上传。');
+        continue;
+      }
+      texts.push('【试稿文件：' + f.name + '】\n' + text.trim());
+      metas.push({ name: f.name, size: f.size, textLength: text.replace(/\s+/g, '').length });
+    } catch(e) {
+      showError('trialErr', f.name + ' 读取失败：' + e.message);
+    }
+  }
+  input.value = '';
+  if (!texts.length) return;
+  st.input = (st.input ? st.input.trim() + '\n\n' : '') + texts.join('\n\n');
+  st.fileMeta = (st.fileMeta || []).concat(metas);
+  if (current.persisted === false) await ensureCurrentPersisted();
+  await saveCurrent();
+  renderMain();
+}
+
+function fmtSize(b) { return b > 1048576 ? (b/1048576).toFixed(1) + ' MB' : Math.round(b/1024) + ' KB'; }
+
+function parseJSONLoose(text) {
+  let t = text.replace(/```json/gi, '').replace(/```/g, '').trim();
+  const s = t.indexOf('{'), e = t.lastIndexOf('}');
+  if (s === -1 || e === -1) throw new Error('模型未返回有效JSON');
+  return JSON.parse(t.slice(s, e + 1));
+}
+
+const JSON_RULE = '你必须只输出一个合法的JSON对象，不要输出任何JSON以外的文字、不要markdown代码块标记、不要前言后语。所有文字内容用简体中文。每条evidence引用尽量简短（30字以内）。如果材料信息不足以判断某维度，score给null并在evidence中说明"材料中无相关信息"，禁止臆测编造。';
+
+/* ================================================================
+   各阶段评估 Prompt
+================================================================ */
+const CONTEXT_INTRO = `你是一家AI新媒体公司的资深招聘评估专家。公司在招"AI产品体验官（实习生/管培生）"：日常深度使用Claude/Codex/GLM等AI产品，每天产出案例/教程类文章和视频，发布在公司自媒体IP账号上。候选人为在读大三学生或未毕业研究生。公司不要求自媒体经验，核心考察底层能力，目标是找到可长期培养、毕业后可转正留任的人才。评估必须严格基于材料证据，宁可标注"无法判断"也不要脑补。`;
+
+const RESUME_PROMPT = CONTEXT_INTRO + `
+
+现在进行【阶段一：简历初筛】。请从以下维度评估（1-5分，5为最佳）：
+1. 自我驱动力（权重最高）：简历中是否有"自己想做而非被要求做"的痕迹——自发项目、长期坚持的事（博客/开源/账号/社团深度投入）、超出学业要求的经历。
+2. 逻辑能力：简历本身的结构是否清晰；经历描述是否呈现"做了什么→怎么做→结果如何"，是否有量化结果；还是流水账堆砌。
+3. AI兴趣与使用深度：是否有具体的AI使用/折腾痕迹（自建工作流、用AI做过完整作品、相关项目）。注意"了解ChatGPT"这类泛泛表述是零信息量。
+4. 表达能力（加分项）：文字是否流畅，有无写作/内容类经历（公众号、知乎、博客、校媒等）。
+5. 留任可行性（硬性过滤）：毕业时间、所在地、是否透露考研/考公/出国/读博倾向。这是硬过滤：明显无法长期留任则整体不推荐。
+
+另外必须准确提取候选人姓名和教育经历：
+- candidateName：候选人姓名。只能从简历正文、简历文件视觉内容或候选人明确提供的文字中提取；不要从文件名、邮箱、微信号或系统临时显示名猜测。如果无法确定，给null。
+- gender：性别，只能在简历明确出现性别、照片旁标注、或自述中明确写出时填写"男"或"女"；无法确定给null，禁止根据姓名/照片猜测。
+- educationStage：候选人当前/最高在读阶段，输出"本科"或"研究生"；若材料不足给null。
+- graduationYear：预计或最近毕业年份，四位数字字符串（如"2027"）；从教育经历时间段或毕业时间中提取，无法确定给null。
+- education：数组，列出每一段高等教育经历，字段为 {"school":"学校全称（照抄简历原文，不要改写或猜测）","level":"本科"|"硕士"|"博士"|"其他","major":"专业","period":"时间段"}。
+- 只提取简历中明确写出的，不要臆造。如果简历完全没有教育信息，education给空数组。
+
+同时输出：
+- interviewQuestions：给面试官的追问验证清单。针对简历中"说了但没给证据"或"数字可疑"或"表述模糊"之处，生成具体追问问题（这些问题同时服务于验证真实性）。
+- redFlags：时间线矛盾、成果数字明显夸大等诚信疑点。
+
+` + JSON_RULE + `
+JSON结构：
+{"candidateName":"…"或null,"gender":"男|女"或null,"educationStage":"本科|研究生"或null,"graduationYear":"2027"或null,"education":[{"school":"…","level":"本科|硕士|博士|其他","major":"…","period":"…"}],"dimensions":[{"name":"自我驱动力","score":1-5或null,"evidence":["…"],"concerns":["…"]},{"name":"逻辑能力",…},{"name":"AI兴趣与使用深度",…},{"name":"表达能力",…}],"hardFilter":{"pass":true|false|"unknown","notes":"…"},"interviewQuestions":["…"],"redFlags":["…"],"conclusion":{"tier":"推荐面试"|"边缘"|"不推荐","summary":"两三句话结论"}}`;
+
+const PROJECT_PROMPT = CONTEXT_INTRO + `
+
+现在进行【材料初筛：项目深挖】。候选人可能随简历一起提供了项目链接（GitHub仓库或作品网站），HR也可能提供少量补充说明。用户消息中会包含系统从项目链接抓取到的公开网页正文；请优先基于这些抓取内容、补充说明和简历交叉验证来评估。若某个链接抓取失败或页面为纯前端渲染导致正文不足，不要简单写"无法评估"，而是基于已有材料给出可判断部分，并在needsManualCheck列出需要人工打开核验的细节。
+
+核心评估维度（1-5分）：
+1. 项目精细程度与完整性：是否像认真做过的完整作品，而不是随手拼的demo。看内容是否完整、页面/模块是否有层次、细节是否丰富、是否有真实信息架构、是否体现持续打磨痕迹。高分信号：多模块完整呈现、细节填充充分、交付形态完整、有明确目标和上下文；低分信号：只有模板文字、占位内容、页面残缺、明显赶工。
+2. 页面美观与体验：作品网站/页面是否美观、排版是否舒服、视觉风格是否统一、移动端/基础交互是否考虑。一般真正上心的人会把公开页面做得更完整更好看。高分信号：排版层级清晰、视觉统一、细节设计到位、可读性好；低分信号：默认模板感强、样式粗糙、内容拥挤、明显错位或可读性差。
+3. 功能复杂度与实现含金量：功能是否有一定复杂度和实现挑战。现在很多简单页面/静态展示可以很快用AI生成，过于简单的功能含金量有限。高分信号：有多页面/交互/数据处理/状态管理/后端或复杂前端逻辑/真实产品流程；低分信号：纯静态单页、简单跳转、无实际交互、功能可由模板快速生成。
+4. 真实性与原创性：项目是否像本人所做（原创 vs fork改壳 vs 模板套壳）。注意：候选人通常只会提供一个或多个代表项目，不会提供全部项目；"没有提供简历中提到的所有项目链接"本身不是造假或诚信风险，不能因此扣分。只有出现明确冲突（例如简历说本人独立开发，但公开页面/仓库明确显示为模板署名、fork改壳、他人项目、时间线矛盾）才标记为风险。如果抓取内容无法核验commit历史、源码结构或部署记录，必须在needsManualCheck中列出待人工核验项，禁止编造。
+
+同时与已有的简历评估结果交叉验证：只验证"候选人提供的项目"与简历中相关描述是否存在明确冲突。不要因为候选人只提供部分项目、没有覆盖简历所有项目，就判断"不一致"或"造假嫌疑"；这种情况应写为"材料覆盖有限，待面试补充"。
+再补充针对项目的面试追问问题：重点追问设计取舍、具体实现、页面美化过程、功能复杂点，以及哪些部分是AI辅助、候选人自己如何判断和修改。
+
+` + JSON_RULE + `
+JSON结构：
+{"dimensions":[{"name":"项目精细程度与完整性","score":1-5或null,"evidence":["…"],"concerns":["…"]},{"name":"页面美观与体验",…},{"name":"功能复杂度与实现含金量",…},{"name":"真实性与原创性",…}],"needsManualCheck":["…"],"consistencyWithResume":{"status":"一致"|"部分不符"|"明显不符"|"无法判断","details":["…"]},"interviewQuestions":["…"],"conclusion":{"tier":"加分"|"中性"|"存疑","summary":"…"}}`;
+
+const MATERIAL_PROMPT = CONTEXT_INTRO + `
+
+现在生成【材料综合评估】。输入是候选人的简历评估结果和项目评估结果。请站在HR第一轮材料筛选视角，给出一个整体判断，再保留各部分细节供后续展开。
+
+要求：
+1. 结论必须综合简历和项目两类证据：简历负责判断基础背景、自驱力、逻辑、AI兴趣、留任可行性；项目负责判断作品完整度、审美、功能复杂度、真实性与原创性。
+2. 如果项目材料缺失或只提供了一个/几个代表项目，这是正常投递情况，不要视为造假或诚信风险；只写为"材料覆盖有限，面试补充核验"。
+3. 如果简历学历门槛一票否决，整体结论应体现该硬性限制。
+4. dimensions必须且只能输出以下六项，名称必须完全一致：基础背景、自我驱动力、逻辑能力、AI兴趣与使用深度、表达能力、项目实战能力。
+5. 本岗位筛选非常严格，目标是找"非常好的苗子"，不是找普通合格候选人。211/985背景、自我驱动力、逻辑性/学习能力是硬性门槛；AI实践和基础资料也很重要。打分必须拉开差距，禁止因为简历措辞积极就给高分。
+6. 评分校准：
+   - 5分：材料中有非常强、具体、可验证的证据，明显高于同龄候选人。例如自发长期项目/持续产出/复杂作品/清晰复盘/量化成果。
+   - 4分：有明确证据支持较强，但仍有待面试验证的部分。
+   - 3分：普通或材料不足，只能说明"可能还可以"，不能视为通过硬门槛。
+   - 2分：证据弱、泛泛表述、项目简单或逻辑表达一般。
+   - 1分：明显不匹配或硬伤。
+7. 结论校准：
+   - "推荐面试"必须同时满足：学历门槛通过或极少数强证据可例外说明；自我驱动力>=4；逻辑能力>=4；基础背景无明显留任硬伤；AI兴趣或项目实战至少一项>=4。不能因为某一项亮眼就整体推荐。
+   - "边缘"用于证据不充分、某个核心项只有3分、或需要面试确认但尚未一票否决的候选人。
+   - "不推荐"用于211/985门槛未过、自驱力<=3、逻辑能力<=3、留任明显不可行、或材料明显普通且缺少亮点的候选人。
+8. hardGates必须逐项给出"通过/存疑/不通过"。如果没有强证据支持，就标为"存疑"或"不通过"，不要默认通过。
+9. interviewFocus列出后续面试最该验证的3-5个问题，不要泛泛而谈。
+
+` + JSON_RULE + `
+JSON结构：
+{"dimensions":[{"name":"基础背景","score":1-5或null,"evidence":["…"],"concerns":["…"]},{"name":"自我驱动力",…},{"name":"逻辑能力",…},{"name":"AI兴趣与使用深度",…},{"name":"表达能力",…},{"name":"项目实战能力",…}],"hardGates":[{"item":"211/985学历门槛","status":"通过"|"存疑"|"不通过","notes":"…"},{"item":"自我驱动力硬门槛","status":"通过"|"存疑"|"不通过","notes":"…"},{"item":"逻辑学习能力硬门槛","status":"通过"|"存疑"|"不通过","notes":"…"},{"item":"AI实践匹配度","status":"通过"|"存疑"|"不通过","notes":"…"},{"item":"留任可行性","status":"通过"|"存疑"|"不通过","notes":"…"}],"materialCoverage":{"level":"充分"|"部分"|"不足","notes":"…"},"interviewFocus":["…"],"conclusion":{"tier":"推荐面试"|"边缘"|"不推荐","summary":"两三句话整体结论，必须说明推荐或不推荐的硬门槛依据"}}`;
+
+const OUTLINE_PROMPT = CONTEXT_INTRO + `
+
+现在请基于该候选人前序阶段的评估结果，为面试官生成一份【个性化面试提纲】。要求：
+- 不要通用套题，每个问题都要针对该候选人材料中的具体内容或疑点。
+- 覆盖四个考察目标：①自驱力与目标感（目标是否具体、是否自己想做）②逻辑与学习能力 ③真实性验证（针对前序标记的追问点，设计可逐层深入的追问链）④岗位匹配（AI使用深度、内容表达兴趣、留任意向）。
+- 每个问题附一句"考察目的"，帮助面试官理解要听什么。
+
+` + JSON_RULE + `
+JSON结构：
+{"sections":[{"topic":"…","questions":[{"q":"…","purpose":"…"}]}]}`;
+
+const INTERVIEW_PROMPT = CONTEXT_INTRO + `
+
+现在进行【阶段三：面试记录分析 + 是否给付费试稿建议】。输入是腾讯会议的面试转写文本（可能有转写错别字，请自行容错），以及该候选人前序材料评估结果。试稿环节公司需要付出费用，因此你必须给出是否值得进入付费试稿的明确建议。
+
+评估维度（1-5分）：
+1. 回答的逻辑结构：是否有先框架后细节的思维习惯，还是想到哪说到哪。
+2. 追问下的表现：面对深入追问是否能给出具体细节。真做过的人经得起三层追问；包装的人在第二层就开始含糊、绕圈、转移话题。请引用转写中的具体表现。
+3. 目标感的具体度："我想进AI行业"是空话；"我从X月开始每周做Y并记录在Z"是实话。评估其目标是否具体、是否有自己的行动而非空表态。
+4. 沟通表达：口头表达是否清楚（考虑到岗位要输出内容）。
+
+交叉验证：面试口述与简历、项目评估结果是否一致，列出所有明确不一致点。注意候选人未提供全部项目链接或只提供代表项目是正常情况，不能单独视为不一致或诚信风险；只有口述与已提供材料/简历之间存在明确冲突时才标记。
+诚信信号：主动承认不会/不懂（正面）、把不确定说成确定、明显背稿、夸大（负面），引用原文。
+
+付费试稿建议规则：
+- "建议给试稿"：材料评估和面试都显示候选人在自驱力、逻辑学习能力、AI/项目实践或表达潜力上有较强证据，且没有明显诚信风险；值得支付试稿成本进一步验证真实产出。
+- "谨慎给试稿"：有一个核心亮点但证据不足，或面试中存在待验证疑点；只有在候选人池不足、或HR愿意用试稿验证关键疑点时才建议给。
+- "不建议给试稿"：材料或面试已显示核心门槛不足（自驱力弱、逻辑差、表达差、AI实践很浅、留任不可行、诚信风险明显），不值得支付试稿成本。
+- trialRecommendation必须用成本意识说明：为什么值得/不值得花钱进入试稿，试稿要验证的关键点是什么。
+
+` + JSON_RULE + `
+JSON结构：
+{"dimensions":[{"name":"逻辑结构","score":1-5或null,"evidence":["…"],"concerns":["…"]},{"name":"追问下的表现",…},{"name":"目标感具体度",…},{"name":"沟通表达",…}],"consistency":{"status":"一致"|"部分不符"|"明显不符"|"无法判断","issues":["…"]},"honestySignals":{"positive":["…"],"negative":["…"]},"trialRecommendation":{"decision":"建议给试稿"|"谨慎给试稿"|"不建议给试稿","costRationale":"…","trialFocus":["如果给试稿，最该验证的点…"]},"conclusion":{"tier":"建议给试稿"|"谨慎给试稿"|"不建议给试稿","summary":"结合材料和面试后的试稿建议"}}`;
+
+const TRIAL_PROMPT = CONTEXT_INTRO + `
+
+现在进行【阶段四：试稿评估】。这是含金量最高的环节，直接考察岗位核心能力。
+
+试稿要求背景：写一篇关于OpenClaw（或自选AI产品如Seedance2.0等）的实战案例/教程类公众号文章。目标读者是25-35岁互联网从业白领（运营/产品/研发为主）。写作目的：高打开、有耐心看完（有趣好玩有人味）、看完有收获。硬性要求：≥2000字（最佳区间2000-2500）、不得大量复制粘贴、不允许事实性错误、禁止大量AI直出内容、行文要大白话、轻松幽默、有"活人感"（参考公众号"猫笔刀"风格），不能写成教科书或论文。
+
+评估维度（1-5分）：
+1. 选题与读者意识：选题是否符合"火的内容会继续火"逻辑，是否站在目标读者角度写。
+2. 结构与逻辑：文章推进是否清晰（案例展示→大概怎么做的→个人小观点），有无逻辑断层。
+3. 活人感与可读性：是否大白话、轻松、有个人语气和真实情绪，能否吸引人看完；还是干瘪的说明书腔。请引用原文佐证。
+4. 案例实战深度与有用性：是否有真实使用细节（具体操作、踩坑、参数、结果），读者看完是否有所得。
+5. AI直出内容评估：候选人日常工作就是用AI，用AI辅助不是问题；要区分的是"AI辅助但有自己的体验、判断和加工" vs "AI全权代写毫无本人痕迹"。判断信号：有无真实使用细节和具体截图描述、有无个人化的观点和情绪、是否充满AI典型套话（"总的来说""值得注意的是"式的空洞总结、排比堆砌、面面俱到却无细节）。给出level：低（基本本人写）/中（AI辅助明显但有本人加工）/高（疑似AI直出）。
+6. 事实性错误风险：列出文中可疑的事实表述（不确定的标注"建议人工核实"）。
+
+用户消息中会提供系统统计的字数，请将其纳入hardRequirements汇总。不要输出需要HR额外勾选确认的人工核验项。
+
+` + JSON_RULE + `
+JSON结构：
+{"hardRequirements":[{"item":"字数≥2000","pass":true|false,"notes":"…"},{"item":"无大量复制粘贴","pass":true|false|"unknown","notes":"…"}],"dimensions":[{"name":"选题与读者意识","score":1-5或null,"evidence":["…"],"concerns":["…"]},{"name":"结构与逻辑",…},{"name":"活人感与可读性",…},{"name":"案例实战深度与有用性",…}],"aiGeneratedAssessment":{"level":"低"|"中"|"高","signals":["…"],"note":"…"},"factualErrorRisks":["…"],"conclusion":{"tier":"通过·发offer"|"修改后复评"|"不通过","summary":"…"}}`;
+
+const FINAL_PROMPT = CONTEXT_INTRO + `
+
+现在生成【候选人综合评估报告】。输入是该候选人四个阶段（可能部分缺失）的全部评估结果。要求：
+1. 汇总核心能力评分：自我驱动力、逻辑能力、学习能力、AI兴趣深度、表达能力，每项给1-5综合分并注明主要依据来自哪个阶段。
+2. 守信与真诚评估：这不是单一材料能判断的，必须基于跨阶段证据链——简历vs项目vs面试口述vs试稿的一致性、试稿硬性要求（deadline/格式/字数）的遵守情况、面试中的诚信信号。给出level（高/中/低/存疑）和证据链。
+   特别注意：候选人只提供一个或多个代表项目、未提供全部项目链接，是正常投递情况，不能作为诚信负面证据；只能列为"材料覆盖有限/待面试补充"。只有明确冲突、夸大、冒用、时间线矛盾，才可以进入不一致点或诚信风险。
+3. 汇总所有跨阶段不一致点。
+4. strengths / risks 各列3条以内最关键的。
+5. 最终建议：录用 / 谨慎录用（说明附加条件）/ 不录用，附理由；若录用，给2-3条针对性培养建议。
+
+` + JSON_RULE + `
+JSON结构：
+{"scoreSummary":[{"dimension":"自我驱动力","score":1-5或null,"basis":"…"},…],"integrityAssessment":{"level":"高"|"中"|"低"|"存疑","evidenceChain":["…"]},"inconsistencies":["…"],"strengths":["…"],"risks":["…"],"recommendation":{"decision":"录用"|"谨慎录用"|"不录用","rationale":"…","onboardingSuggestions":["…"]}}`;
+
+/* ================================================================
+   评估动作
+================================================================ */
+const loadingBtns = {};
+
+function setLoading(btnId, on) {
+  loadingBtns[btnId] = on;
+  const btn = document.getElementById(btnId);
+  if (!btn) return;
+  btn.disabled = on;
+  const sp = btn.querySelector('.spinner');
+  if (sp) sp.style.display = on ? 'inline-block' : 'none';
+}
+function showError(boxId, msg) {
+  const box = document.getElementById(boxId);
+  if (box) { box.style.display = 'block'; box.textContent = msg; }
+}
+function clearError(boxId) {
+  const box = document.getElementById(boxId);
+  if (box) { box.style.display = 'none'; }
+}
+
+// 学历门槛核验：本硕任一满足211/985即通过（一票否决项）
+function normalizeSchool(name) {
+  if (!name) return '';
+  return String(name).replace(/[\s（）()、,，.。·]/g, '').trim();
+}
+const UNIV_211_NORM = UNIV_211.map(normalizeSchool);
+
+// 独立学院/分校等易与母体211混淆的后缀：出现这些词一律不认定为211（除非精确等于名单项）
+const EDU_EXCLUDE_SUFFIX = ['学院', '分校', '独立学院', '继续教育', '成人', '专科', '职业', '技术学院'];
+
+function matchUniv(rawName) {
+  // 返回：命中的名单项字符串 | null(非211) | '__REVIEW__'(疑似211分校，需人工确认)
+  const norm = normalizeSchool(rawName);
+  if (!norm) return null;
+  // 1) 精确匹配（最可靠）
+  let idx = UNIV_211_NORM.indexOf(norm);
+  if (idx !== -1) return UNIV_211[idx];
+  // 2) "名单项 + 括号校区说明"（如 哈尔滨工业大学（深圳））直接认定
+  idx = UNIV_211_NORM.findIndex(fn => fn.length >= 4 && norm.startsWith(fn) &&
+    /^[（(]?(北京|武汉|华东|保定|东营|威海|珠海|深圳|校区)?[)）]?$/.test(norm.slice(fn.length)));
+  if (idx !== -1) return UNIV_211[idx];
+  // 3) 含"学院/分校"等后缀：需区分"211的分校区(算)"与"独立学院/双非(不算)"，机器无法可靠判定→交人工
+  const hasBranchSuffix = EDU_EXCLUDE_SUFFIX.some(sfx => norm.endsWith(sfx));
+  if (hasBranchSuffix) {
+    // 若去掉"分校/校区"后精确等于某211，视为疑似分校待确认；否则(如独立学院)判否
+    const stripped = norm.replace(/(威海|青岛|深圳|珠海|北京|武汉|华东|保定)?(分校|校区)$/, '');
+    if (UNIV_211_NORM.indexOf(stripped) !== -1 && /分校|校区/.test(norm)) return '__REVIEW__';
+    return null;
+  }
+  return null;
+}
+
+function checkEducation(education) {
+  // 返回 { status: 'pass'|'fail'|'unknown', matched: [...], details: [...] }
+  if (!education || !education.length) {
+    return { status: 'unknown', matched: [], details: ['简历未提取到教育经历，请人工核实学历。'] };
+  }
+  const relevant = education.filter(e => !e.level || /本科|硕士|博士|研究生/.test(e.level));
+  const details = [];
+  const matched = [];
+  let needReview = false;
+  for (const e of (relevant.length ? relevant : education)) {
+    const hit = matchUniv(e.school);
+    if (hit === '__REVIEW__') {
+      needReview = true;
+      details.push((e.level || '学历') + '　' + (e.school || '') + '　⚠ 疑似211分校，请人工确认');
+    } else if (hit) {
+      matched.push((e.level || '') + '：' + e.school + ' → 命中 ' + hit);
+      details.push((e.level || '学历') + '　' + e.school + '　✓ 211/985');
+    } else {
+      details.push((e.level || '学历') + '　' + (e.school || '（校名缺失）') + '　非211/985');
+    }
+  }
+  let status = matched.length ? 'pass' : (needReview ? 'unknown' : 'fail');
+  return { status, matched, details };
+}
+
+function priorContext() {
+  const s = current.stages;
+  const parts = [];
+  if (s.material && s.material.result) parts.push('【材料综合评估结果】\n' + JSON.stringify(s.material.result));
+  if (s.resume.result) parts.push('【简历阶段评估结果】\n' + JSON.stringify(s.resume.result));
+  if (s.project.result) parts.push('【项目阶段评估结果】\n' + JSON.stringify(s.project.result));
+  if (s.interview.result) parts.push('【面试阶段评估结果】\n' + JSON.stringify(s.interview.result));
+  if (s.trial.result) parts.push('【试稿阶段评估结果】\n' + JSON.stringify(s.trial.result));
+  return parts.join('\n\n');
+}
+
+async function runResume(opts) {
+  opts = opts || {};
+  const btnId = opts.buttonId || 'resumeBtn';
+  const shouldRender = opts.render !== false;
+  const manageLoading = opts.manageLoading !== false;
+  const st = current.stages.resume;
+  st.input = document.getElementById('resumeInput').value;
+  const files = filesOf(current.id);
+  // 提取的简历文字：优先本次上传，其次是已持久保存的
+  let extractedTexts = files.filter(f => f.kind === 'pdf-text').map(f => ({ name: f.name, text: f.text }));
+  if (!files.length && st.fileMeta) {
+    extractedTexts = st.fileMeta.filter(m => m.text).map(m => ({ name: m.name, text: m.text }));
+  }
+  const binFiles = files.filter(f => f.kind === 'pdf' || f.kind === 'image');
+  if (!st.input.trim() && !binFiles.length && !extractedTexts.length) {
+    if (st.fileMeta && st.fileMeta.length) {
+      showError('resumeErr', '候选人记录里只有旧版文件摘要「' + st.fileMeta.map(m => m.name).join('、') + '」，没有可读取的原文件数据；请重新上传后再评估。');
+    } else {
+      showError('resumeErr', '请上传简历文件（PDF/图片）或粘贴简历文字。项目材料可在下方一起填写。');
+    }
+    return;
+  }
+  if (current.persisted === false) await ensureCurrentPersisted();
+  clearError('resumeErr');
+  if (manageLoading) setLoading(btnId, true);
+  try {
+    const blocks = [];
+    for (const f of binFiles) {
+      if (f.kind === 'pdf') blocks.push({ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: f.data } });
+      else blocks.push({ type: 'image', source: { type: 'base64', media_type: f.media_type, data: f.data } });
+    }
+    let textPart = isPendingName(current.name)
+      ? '当前候选人姓名尚未录入。请从简历材料中识别candidateName；不要把系统临时显示名当作姓名。'
+      : '当前候选人显示名：' + current.name + '。仍请以简历材料为准校验candidateName。';
+    if (binFiles.length) textPart += '\n以上文件即候选人简历（' + binFiles.map(f => f.name).join('、') + '），请完整读取后评估。';
+    for (const t of extractedTexts) {
+      textPart += '\n\n【简历文件《' + t.name + '》提取的文字（提取自PDF文字层，排版信息已丢失，请勿因排版扣分）】\n' + t.text;
+    }
+    if (st.input.trim()) textPart += '\n\n【补充文字/简历原文】\n' + st.input;
+    blocks.push({ type: 'text', text: textPart });
+    const r = await callLLM(RESUME_PROMPT, blocks, {});
+    st.result = parseJSONLoose(r.text);
+    st.engine = r.engine;
+    st.result.eduCheck = checkEducation(st.result.education);
+    await applyDetectedProfile(st.result);
+    st.at = new Date().toISOString();
+    await saveCurrent();
+    if (shouldRender) { renderSidebar(); renderMain(); }
+    return true;
+  } catch(e) {
+    showError('resumeErr', e.message);
+    return false;
+  } finally {
+    if (manageLoading) setLoading(btnId, false);
+  }
+}
+
+function emptyProjectResult() {
+  return {
+    dimensions: [
+      { name: '项目精细程度与完整性', score: null, evidence: ['未提供项目材料'], concerns: ['无法判断项目是否完整、是否用心打磨'] },
+      { name: '页面美观与体验', score: null, evidence: ['未提供项目材料'], concerns: ['无法判断页面美观度和体验'] },
+      { name: '功能复杂度与实现含金量', score: null, evidence: ['未提供项目材料'], concerns: ['无法判断功能复杂度'] },
+      { name: '真实性与原创性', score: null, evidence: ['未提供项目材料'], concerns: ['无法核验项目真实性'] }
+    ],
+    needsManualCheck: ['请候选人补充项目链接、作品网站、README或项目截图等材料。'],
+    consistencyWithResume: { status: '无法判断', details: ['未提供项目材料或仅提供部分代表项目属于正常情况，不能据此判断简历不一致或造假。'] },
+    interviewQuestions: ['你最近一个完整项目是什么？请现场说明目标、你的具体贡献、实现过程和遇到的问题。'],
+    conclusion: { tier: '中性', summary: '候选人未提供项目材料，本阶段无法形成加分或扣分证据，建议面试中重点补充核验。' }
+  };
+}
+
+function extractUrls(text) {
+  return Array.from(new Set((text.match(/https?:\/\/[^\s"'<>，。；;]+/g) || []).map(u => u.trim())));
+}
+
+async function fetchProjectSources(urls) {
+  if (!urls.length) return [];
+  try {
+    const resp = await fetch(API_BASE + '/api/fetch-projects', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ urls })
+    });
+    if (!resp.ok) throw new Error('本地抓取接口失败 ' + resp.status);
+    const data = await resp.json();
+    if (!data.ok) throw new Error(data.error || '本地抓取接口失败');
+    return data.results || [];
+  } catch(e) {
+    return urls.map(url => ({ url, ok: false, error: '本地服务抓取失败：' + e.message }));
+  }
+}
+
+function projectSourceText(sources) {
+  if (!sources.length) return '';
+  return '\n\n【系统抓取的项目链接公开内容】\n' + sources.map(s => {
+    if (!s.ok) return '链接：' + s.url + '\n抓取失败：' + (s.error || '未知原因');
+    const text = (s.text || '').trim();
+    return '链接：' + s.url +
+      '\nHTTP状态：' + (s.status || 'unknown') +
+      '\n内容类型：' + (s.contentType || 'unknown') +
+      (s.truncated ? '\n备注：内容较长，已截断。' : '') +
+      '\n正文摘录：\n' + (text || '（页面无可提取正文，可能是纯前端渲染页面）');
+  }).join('\n\n---\n\n');
+}
+
+async function runProject(opts) {
+  opts = opts || {};
+  const btnId = opts.buttonId || 'projBtn';
+  const shouldRender = opts.render !== false;
+  const manageLoading = opts.manageLoading !== false;
+  const allowEmpty = opts.allowEmpty === true;
+  const st = current.stages.project;
+  st.input = document.getElementById('projLinks').value;
+  const notesEl = document.getElementById('resumeInput');
+  st.notes = notesEl ? notesEl.value : (st.notes || current.stages.resume.input || '');
+  if (!st.input.trim() && !st.notes.trim()) {
+    if (!allowEmpty) { showError('projErr', '请填写项目链接，或粘贴项目相关材料。'); return false; }
+    if (current.persisted === false) await ensureCurrentPersisted();
+    st.result = emptyProjectResult();
+    st.engine = '系统规则';
+    st.at = new Date().toISOString();
+    await saveCurrent();
+    if (shouldRender) { renderSidebar(); renderMain(); }
+    return true;
+  }
+  if (current.persisted === false) await ensureCurrentPersisted();
+  clearError('projErr');
+  if (manageLoading) setLoading(btnId, true);
+  try {
+    const urls = extractUrls(st.input + '\n' + st.notes);
+    const sources = await fetchProjectSources(urls);
+    let msg = '候选人姓名：' + current.name + '\n\n【项目链接】\n' + (st.input || '（无链接）');
+    if (st.notes.trim()) msg += '\n\n【补充说明】\n' + st.notes;
+    msg += projectSourceText(sources);
+    const prior = current.stages.resume.result ? '\n\n【前序阶段结果，用于交叉验证】\n' + JSON.stringify(current.stages.resume.result) : '';
+    const r = await callLLM(PROJECT_PROMPT, msg + prior, {});
+    st.result = parseJSONLoose(r.text);
+    st.engine = r.engine;
+    st.at = new Date().toISOString();
+    await saveCurrent();
+    if (shouldRender) { renderSidebar(); renderMain(); }
+    return true;
+  } catch(e) {
+    showError('projErr', e.message);
+    return false;
+  } finally {
+    if (manageLoading) setLoading(btnId, false);
+  }
+}
+
+async function runMaterialSummary() {
+  const st = current.stages.material || (current.stages.material = { result: null, at: null });
+  if (!current.stages.resume.result) return false;
+  try {
+    const msg = '候选人姓名：' + current.name +
+      '\n\n【简历评估结果】\n' + JSON.stringify(current.stages.resume.result) +
+      '\n\n【项目评估结果】\n' + JSON.stringify(current.stages.project.result || emptyProjectResult());
+    const r = await callLLM(MATERIAL_PROMPT, msg, {});
+    st.result = parseJSONLoose(r.text);
+    st.engine = r.engine;
+    st.at = new Date().toISOString();
+    await saveCurrent();
+    return true;
+  } catch(e) {
+    showError('resumeErr', e.message);
+    return false;
+  }
+}
+
+async function runMaterials() {
+  clearError('resumeErr');
+  clearError('projErr');
+  setLoading('materialBtn', true);
+  try {
+    const resumeOK = await runResume({ buttonId: 'materialBtn', render: false, manageLoading: false });
+    if (!resumeOK) return;
+    const projectOK = await runProject({ buttonId: 'materialBtn', render: false, manageLoading: false, allowEmpty: true });
+    if (!projectOK) return;
+    await runMaterialSummary();
+    renderSidebar();
+    renderMain();
+  } finally {
+    setLoading('materialBtn', false);
+  }
+}
+
+async function runOutline() {
+  const st = current.stages.interview;
+  clearError('ivErr'); setLoading('outlineBtn', true);
+  try {
+    const prior = priorContext();
+    if (!prior) throw new Error('请先完成至少一个前序阶段的评估，才能生成个性化提纲。');
+    const r = await callLLM(OUTLINE_PROMPT, '候选人姓名：' + current.name + '\n\n' + prior, {});
+    st.outline = parseJSONLoose(r.text);
+    await saveCurrent(); renderMain();
+  } catch(e) { showError('ivErr', e.message); }
+  setLoading('outlineBtn', false);
+}
+
+async function runInterview() {
+  const st = current.stages.interview;
+  st.input = document.getElementById('ivInput').value;
+  if (!st.input.trim()) { showError('ivErr', '请先粘贴腾讯会议转写文本。'); return; }
+  clearError('ivErr'); setLoading('ivBtn', true);
+  try {
+    const prior = priorContext();
+    const r = await callLLM(INTERVIEW_PROMPT,
+      '候选人姓名：' + current.name + '\n\n【面试转写文本】\n' + st.input + (prior ? '\n\n【前序阶段结果，用于交叉验证】\n' + prior : ''), {});
+    st.result = parseJSONLoose(r.text);
+    st.engine = r.engine;
+    st.at = new Date().toISOString();
+    await saveCurrent(); renderSidebar(); renderMain();
+  } catch(e) { showError('ivErr', e.message); }
+  setLoading('ivBtn', false);
+}
+
+function countChineseWords(text) {
+  return text.replace(/\s+/g, '').length;
+}
+
+async function runTrial() {
+  const st = current.stages.trial;
+  st.input = document.getElementById('trialInput').value;
+  if (!st.input.trim()) { showError('trialErr', '请先粘贴试稿全文。'); return; }
+  clearError('trialErr'); setLoading('trialBtn', true);
+  try {
+    const wc = countChineseWords(st.input);
+    const prior = priorContext();
+    const msg = '候选人姓名：' + current.name +
+      '\n\n【系统统计字数（去空白字符）】' + wc +
+      '\n\n【试稿全文】\n' + st.input +
+      (prior ? '\n\n【前序阶段结果，用于交叉验证】\n' + prior : '');
+    const r = await callLLM(TRIAL_PROMPT, msg, {});
+    st.result = parseJSONLoose(r.text);
+    st.engine = r.engine;
+    st.at = new Date().toISOString();
+    await saveCurrent(); renderSidebar(); renderMain();
+  } catch(e) { showError('trialErr', e.message); }
+  setLoading('trialBtn', false);
+}
+
+async function runFinal() {
+  const st = current.stages.final;
+  clearError('finalErr'); setLoading('finalBtn', true);
+  try {
+    const done = ['resume','project','interview','trial'].filter(k => current.stages[k].result);
+    if (done.length < 2) throw new Error('至少需要完成两个阶段的评估，才能生成综合报告。');
+    const r = await callLLM(FINAL_PROMPT, '候选人姓名：' + current.name + '\n\n' + priorContext(), {});
+    st.result = parseJSONLoose(r.text);
+    st.engine = r.engine;
+    st.at = new Date().toISOString();
+    await saveCurrent(); renderMain();
+  } catch(e) { showError('finalErr', e.message); }
+  setLoading('finalBtn', false);
+}
+
+async function persistInputs() {
+  if (!current) return;
+  const g = id => { const el = document.getElementById(id); return el ? el.value : null; };
+  const v1 = g('resumeInput'); if (v1 !== null) current.stages.resume.input = v1;
+  const v2 = g('projLinks'); if (v2 !== null) current.stages.project.input = v2;
+  if (v1 !== null) current.stages.project.notes = v1;
+  const v4 = g('ivInput'); if (v4 !== null) current.stages.interview.input = v4;
+  const v5 = g('trialInput'); if (v5 !== null) current.stages.trial.input = v5;
+  const hasResumeText = !!(current.stages.resume.input && current.stages.resume.input.trim());
+  const hasResumeFiles = !!(memFiles[current.id] && memFiles[current.id].length);
+  const hasProjectMaterial = !!((current.stages.project.input && current.stages.project.input.trim()) ||
+    (current.stages.project.notes && current.stages.project.notes.trim()));
+  if (current.persisted === false && (hasResumeText || hasResumeFiles || hasProjectMaterial)) await ensureCurrentPersisted();
+  await saveCurrent();
+}
+
+/* ================================================================
+   渲染层
+================================================================ */
+function esc(s) {
+  if (s === null || s === undefined) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+const TIER_CLASS = {
+  '推荐面试':'tag-good','边缘':'tag-mid','不推荐':'tag-bad',
+  '建议给试稿':'tag-good','谨慎给试稿':'tag-mid','不建议给试稿':'tag-bad',
+  '加分':'tag-good','中性':'tag-neutral','存疑':'tag-mid',
+  '进入试稿':'tag-good',
+  '通过·发offer':'tag-good','修改后复评':'tag-mid','不通过':'tag-bad',
+  '录用':'tag-good','谨慎录用':'tag-mid','不录用':'tag-bad',
+  '高':'tag-good','中':'tag-mid','低':'tag-bad'
+};
+function tierTag(t) { return '<span class="tag ' + (TIER_CLASS[t] || 'tag-neutral') + '">' + esc(t) + '</span>'; }
+
+function stageDotClass(stage) {
+  const r = stage.result;
+  if (!r) return '';
+  if (r.eduCheck && r.eduCheck.status === 'fail') return 'bad';
+  const tier = r.conclusion ? r.conclusion.tier : (r.recommendation ? r.recommendation.decision : '');
+  if (/不推荐|不通过|不录用|明显不符/.test(tier)) return 'bad';
+  if (/边缘|存疑|修改|谨慎/.test(tier)) return 'flag';
+  return 'done';
+}
+
+function materialDotClass(stages) {
+  const m = stageDotClass(stages.material || {});
+  if (m) return m;
+  const a = stageDotClass(stages.resume);
+  const b = stageDotClass(stages.project);
+  if (a === 'bad' || b === 'bad') return 'bad';
+  if (a === 'flag' || b === 'flag') return 'flag';
+  if (a === 'done' || b === 'done') return 'done';
+  return '';
+}
+
+function hasAnyEvaluation(stages) {
+  return !!(stages && (
+    (stages.material && stages.material.result) ||
+    (stages.resume && stages.resume.result) ||
+    (stages.project && stages.project.result) ||
+    (stages.interview && stages.interview.result) ||
+    (stages.trial && stages.trial.result) ||
+    (stages.final && stages.final.result)
+  ));
+}
+
+function renderSidebar() {
+  const list = document.getElementById('candList');
+  const candTextHtml = item => {
+    const meta = [item.gender, item.educationStage, item.graduationYear ? item.graduationYear + '届' : ''].filter(Boolean).join(' · ');
+    return '<span class="cand-text"><span class="name">' + esc(item.name) +
+      (meta ? '<small> · ' + esc(meta) + '</small>' : '') + '</span>' +
+      (item.school ? '<span class="school">' + esc(item.school) + '</span>' : '') + '</span>';
+  };
+  const draftHtml = current && current.persisted === false
+    ? '<div class="cand-item active">' + candTextHtml(current) +
+      '<span style="font-size:11px;color:var(--warning);flex-shrink:0">未保存</span></div>'
+    : '';
+  if (!index.length) {
+    list.innerHTML = draftHtml || '<div style="padding:20px 10px;font-size:13px;color:var(--text-400)">还没有候选人。点击上方“新增候选人”，进入页面后录入简历和项目材料。</div>';
+    return;
+  }
+  list.innerHTML = draftHtml + index.map(item => {
+    const isActive = current && current.id === item.id;
+    let dots = '<span class="dot"></span>'.repeat(4);
+    if (isActive) {
+      dots = '<span class="dot ' + materialDotClass(current.stages) + '"></span>' +
+        ['interview','trial'].map(k => '<span class="dot ' + stageDotClass(current.stages[k]) + '"></span>').join('');
+    }
+    return '<div class="cand-item' + (isActive ? ' active' : '') + '" onclick="openCandidate(\'' + item.id + '\')">' +
+      candTextHtml(item) +
+      '<span style="display:flex;align-items:center;gap:6px">' +
+      (isActive ? '<span class="stage-dots">' + dots + '</span>' : '') +
+      '<button class="del" title="删除" onclick="deleteCandidate(\'' + item.id + '\', event)">×</button></span></div>';
+  }).join('');
+}
+
+async function switchTab(t) { await persistInputs(); activeTab = t; renderMain(); }
+
+function renderMain() {
+  const area = document.getElementById('mainArea');
+  if (!current) {
+    area.innerHTML = '<div class="empty-state"><h2>候选人评估</h2>' +
+      '<p>材料初筛 → 面试分析 → 试稿评审。每进入新阶段，系统会自动与前序材料交叉验证，让不一致的地方自己浮出来。</p>' +
+      '<div class="btn-row" style="justify-content:center;margin-top:22px"><button class="btn btn-primary" onclick="addCandidate()">新增候选人</button></div></div>';
+    return;
+  }
+  const s = current.stages;
+  const anyDone = hasAnyEvaluation(s);
+  if (activeTab === 'overview' && !anyDone) activeTab = 'resume';
+  const tabs = [
+    ...(anyDone ? [['overview','概览', true]] : []),
+    ['resume','① 材料', !!((s.material && s.material.result) || s.resume.result || s.project.result)],
+    ['interview','② 面试', !!s.interview.result],
+    ['trial','③ 试稿', !!s.trial.result],
+    ['final','综合报告', !!s.final.result]
+  ];
+  const nameHint = current.persisted === false
+    ? ' · 临时草稿，录入简历或项目材料后保存'
+    : (isPendingName(current.name) ? ' · 简历评估后自动识别姓名' : '');
+  let html = '<div class="cand-header"><h2>' + esc(current.name) + '</h2>' +
+    '<div class="meta">创建于 ' + new Date(current.createdAt).toLocaleDateString('zh-CN') + nameHint + '</div></div>';
+  html += '<div class="tabs">' + tabs.map(([k, label, done]) =>
+    '<button class="tab' + (activeTab === k ? ' active' : '') + '" onclick="switchTab(\'' + k + '\')">' +
+    label + (done ? ' <span class="tick">✓</span>' : '') + '</button>').join('') + '</div>';
+
+  if (activeTab === 'overview') html += renderOverviewTab();
+  else if (activeTab === 'resume') html += renderResumeTab();
+  else if (activeTab === 'interview') html += renderInterviewTab();
+  else if (activeTab === 'trial') html += renderTrialTab();
+  else html += renderFinalTab();
+
+  area.innerHTML = html;
+}
+
+function dimRows(dims) {
+  if (!dims || !dims.length) return '';
+  return dims.map(d => {
+    const sc = d.score;
+    const pct = sc ? (sc / 5 * 100) : 0;
+    return '<div class="dim-row"><div class="dim-top"><span class="dim-name">' + esc(d.name) + '</span>' +
+      '<span class="score-wrap"><span class="score-bar"><span class="score-fill" style="width:' + pct + '%"></span></span>' +
+      '<span class="score-num">' + (sc === null || sc === undefined ? '—' : sc) + '<small>/5</small></span></span></div>' +
+      '<ul class="evidence">' +
+      (d.evidence || []).map(e => '<li>' + esc(e) + '</li>').join('') +
+      (d.concerns || []).filter(Boolean).map(c => '<li class="concern">⚠ ' + esc(c) + '</li>').join('') +
+      '</ul></div>';
+  }).join('');
+}
+
+function dimOverview(dims) {
+  if (!dims || !dims.length) return '';
+  return '<div class="material-overview">' + dims.map(d => {
+    const sc = d.score;
+    const pct = sc ? (sc / 5 * 100) : 0;
+    const details = []
+      .concat((d.evidence || []).map(e => '<li>' + esc(e) + '</li>'))
+      .concat((d.concerns || []).filter(Boolean).map(c => '<li class="concern">⚠ ' + esc(c) + '</li>'))
+      .join('');
+    return '<details class="dim-tile"><summary>' +
+      '<span class="dim-tile-name">' + esc(d.name) + '</span>' +
+      '<span class="dim-tile-score">' + (sc === null || sc === undefined ? '—' : sc) + '<small>/5</small></span>' +
+      '<span class="dim-tile-bar"><span class="dim-tile-fill" style="width:' + pct + '%"></span></span>' +
+      '</summary><div class="dim-tile-body"><ul>' + (details || '<li>暂无展开信息</li>') + '</ul></div></details>';
+  }).join('') + '</div>';
+}
+
+function gateOverview(gates) {
+  if (!gates || !gates.length) return '';
+  return '<div class="section-label">硬性门槛</div><div class="gate-strip">' + gates.map(g => {
+    const status = g.status || '存疑';
+    const cls = status === '通过' ? 'gate-pass' : (status === '不通过' ? 'gate-fail' : 'gate-risk');
+    const tagCls = status === '通过' ? 'tag-good' : (status === '不通过' ? 'tag-bad' : 'tag-mid');
+    return '<div class="gate-chip ' + cls + '"><div class="gate-top">' +
+      '<span class="gate-name">' + esc(g.item || '未命名门槛') + '</span>' +
+      '<span class="tag ' + tagCls + '">' + esc(status) + '</span></div>' +
+      (g.notes ? '<div class="gate-note">' + esc(g.notes) + '</div>' : '') + '</div>';
+  }).join('') + '</div>';
+}
+
+function qList(qs, title) {
+  if (!qs || !qs.length) return '';
+  return '<div class="section-label">' + title + '</div><ol class="q-list">' +
+    qs.map(q => typeof q === 'string'
+      ? '<li>' + esc(q) + '</li>'
+      : '<li>' + esc(q.q) + '<span class="purpose">考察目的：' + esc(q.purpose) + '</span></li>'
+    ).join('') + '</ol>';
+}
+
+function flagList(items, cls, prefix, title) {
+  if (!items || !items.length) return '';
+  return '<div class="section-label">' + title + '</div><ul class="flag-list">' +
+    items.map(i => '<li class="' + cls + '">' + prefix + ' ' + esc(i) + '</li>').join('') + '</ul>';
+}
+
+function resultShell(r, extra, title) {
+  const tier = r.conclusion ? r.conclusion.tier : '';
+  const summary = r.conclusion ? r.conclusion.summary : '';
+  return '<div class="card"><div class="result-header"><h4>' + esc(title || '评估结果') + '</h4>' + (tier ? tierTag(tier) : '') + '</div>' +
+    (summary ? '<div class="result-summary">' + esc(summary) + '</div>' : '') +
+    dimRows(r.dimensions) + (extra || '') + '</div>';
+}
+
+function trialRecommendationBlock(rec) {
+  if (!rec) return '';
+  return '<div class="section-label">付费试稿建议</div>' +
+    '<div class="next-step" style="margin-bottom:10px"><div><div class="k">是否给试稿</div>' +
+    '<div class="v">' + esc(rec.decision || '未判断') + '</div>' +
+    (rec.costRationale ? '<div class="stage-summary" style="margin-top:4px">' + esc(rec.costRationale) + '</div>' : '') +
+    '</div>' + tierTag(rec.decision || '未判断') + '</div>' +
+    qList(rec.trialFocus, '如果给试稿，重点验证');
+}
+
+function stageResult(stageKey) {
+  const st = current.stages[stageKey];
+  if (!st) return null;
+  return stageKey === 'interview' && st.outline && !st.result ? null : st.result;
+}
+
+function stageTierText(stageKey) {
+  const r = stageResult(stageKey);
+  if (!r) return '未开始';
+  if (r.recommendation) return r.recommendation.decision || '已评估';
+  return (r.conclusion && r.conclusion.tier) || '已评估';
+}
+
+function stageSummaryText(stageKey) {
+  const r = stageResult(stageKey);
+  if (!r) return '暂无评估结果。';
+  if (r.recommendation) return r.recommendation.rationale || '已生成综合报告。';
+  return (r.conclusion && r.conclusion.summary) || '已完成该阶段评估。';
+}
+
+function currentStageText() {
+  const s = current.stages;
+  const materialTier = stageTierText('material');
+  const interviewTier = stageTierText('interview');
+  const trialTier = stageTierText('trial');
+  if (!s.material || !s.material.result) return { label: '待材料评估', note: '先上传简历和项目材料，生成第一轮综合判断。' };
+  if (/不推荐/.test(materialTier)) return { label: '材料初筛未通过', note: '除非HR有额外强证据，否则不建议继续推进。' };
+  if (!s.interview.result) return { label: '待面试', note: '材料已评估，可进入面试验证自驱力、逻辑能力和项目真实性。' };
+  if (/不推荐|不建议给试稿/.test(interviewTier)) return { label: '不建议给试稿', note: '面试后判断不值得支付试稿成本。' };
+  if (/谨慎给试稿/.test(interviewTier) && !s.trial.result) return { label: '谨慎给试稿', note: '存在亮点但风险未消除，是否付费试稿需HR二次确认。' };
+  if (!s.trial.result) return { label: '待试稿', note: '面试后建议进入试稿，用付费试稿验证真实产出能力。' };
+  if (/不通过/.test(trialTier)) return { label: '试稿未通过', note: '核心岗位能力未达标，建议停止推进。' };
+  if (!s.final.result) return { label: '待综合报告', note: '关键阶段已有结果，可生成最终综合报告。' };
+  return { label: '流程已完成', note: stageSummaryText('final') };
+}
+
+function renderStageBoard() {
+  const stages = [
+    ['material', '材料综合评估'],
+    ['interview', '面试评估'],
+    ['trial', '试稿评估'],
+    ['final', '最终综合报告']
+  ];
+  return '<div class="card"><div class="result-header"><h4>各阶段评估情况</h4></div>' +
+    '<div class="stage-board">' + stages.map(([key, title]) => {
+      const tier = stageTierText(key);
+      const done = tier !== '未开始';
+      const cls = done ? (TIER_CLASS[tier] || 'tag-neutral') : 'tag-neutral';
+      return '<div class="stage-card"><div class="stage-head"><span class="stage-title">' + esc(title) + '</span>' +
+        '<span class="tag ' + cls + '">' + esc(tier) + '</span></div>' +
+        '<div class="stage-summary">' + esc(stageSummaryText(key)) + '</div></div>';
+    }).join('') + '</div></div>';
+}
+
+function renderOverviewTab() {
+  const step = currentStageText();
+  const profile = [
+    ['姓名', current.name],
+    ['性别', current.gender || '未识别'],
+    ['学校', current.school || '未识别'],
+    ['学历阶段', current.educationStage || '未识别'],
+    ['毕业年份', current.graduationYear ? current.graduationYear + '届' : '未识别'],
+    ['创建时间', new Date(current.createdAt).toLocaleDateString('zh-CN')]
+  ];
+  let html = '<div class="next-step"><div><div class="k">当前阶段</div><div class="v">' + esc(step.label) + '</div>' +
+    '<div class="stage-summary" style="margin-top:4px">' + esc(step.note) + '</div></div>' +
+    '<button class="btn btn-secondary" onclick="switchTab(\'resume\')">补充材料</button></div>';
+  html += '<div class="card"><div class="result-header"><h4>基本信息</h4></div><div class="profile-grid">' +
+    profile.map(([k, v]) => '<div class="profile-item"><div class="label">' + esc(k) + '</div><div class="value">' + esc(v) + '</div></div>').join('') +
+    '</div></div>';
+  html += renderStageBoard();
+  html += renderMaterialSummary();
+  if (current.stages.final && current.stages.final.result) {
+    html += renderFinalReportSummary();
+  }
+  return html;
+}
+
+function renderMaterialSummary() {
+  const st = current.stages.material;
+  const r = st && st.result;
+  if (!r) return '';
+  let extra = '';
+  extra += gateOverview(r.hardGates);
+  extra += dimOverview(r.dimensions);
+  if (r.materialCoverage) {
+    extra += '<div class="section-label">材料覆盖度</div>' +
+      '<div class="hard-req"><span class="tag tag-neutral">' + esc(r.materialCoverage.level || '未标注') + '</span>' +
+      '<span>' + esc(r.materialCoverage.notes || '') + '</span></div>';
+  }
+  if (r.interviewFocus && r.interviewFocus.length) {
+    extra += '<details class="fold-block"><summary>面试中可以追问的问题</summary>' +
+      qList(r.interviewFocus, '建议追问') + '</details>';
+  }
+  return resultShell(Object.assign({}, r, { dimensions: [] }), extra, '材料综合评估');
+}
+
+/* ---------- 各标签页 ---------- */
+function renderResumeTab() {
+  const st = current.stages.resume;
+  const pst = current.stages.project;
+  const files = filesOf(current.id);
+  const materialNotes = st.input || pst.notes || '';
+  let fileArea = '<div class="upload-zone" onclick="document.getElementById(\'resumeFile\').click()">' +
+    '<div style="font-size:14px;color:var(--text-100);font-weight:500">点击上传简历文件</div>' +
+    '<div style="font-size:12.5px;color:var(--text-400)">支持 PDF（≤20MB）和 JPG/PNG 等图片（每张≤5MB），多页截图可一次多选</div>' +
+    '<input type="file" id="resumeFile" accept=".pdf,image/jpeg,image/png,image/gif,image/webp" multiple style="display:none" onchange="onResumeFiles(this)"></div>';
+  if (files.length) {
+    fileArea += files.map((f, i) => {
+      const tag = f.kind === 'pdf-text'
+        ? ' <span class="tag tag-good" style="font-size:11px;padding:1px 8px">文字已提取</span>'
+        : (f.kind === 'pdf' ? ' <span class="tag tag-mid" style="font-size:11px;padding:1px 8px">扫描件·走Claude视觉</span>' : '');
+      const actions = f.data
+        ? '<button onclick="openResumeFile(' + i + ')" title="查看原文件">查看</button><button onclick="downloadResumeFile(' + i + ')" title="下载原文件">下载</button>'
+        : '<span style="font-size:12px;color:var(--warning)">旧版无原文件</span>';
+      return '<div class="file-chip"><span>📄 ' + esc(f.name) + ' <small>' + fmtSize(f.size) + '</small>' + tag +
+        '</span><span style="display:flex;align-items:center;gap:8px;flex-shrink:0">' + actions +
+        '<button onclick="removeResumeFile(' + i + ')" title="移除">×</button></span></div>';
+    }).join('');
+  } else if (st.fileMeta && st.fileMeta.length) {
+    const withText = st.fileMeta.filter(m => m.text);
+    if (withText.length) {
+      fileArea += '<div style="font-size:12.5px;color:var(--success);margin-top:8px">✓ 已保存文件文字：' +
+        esc(withText.map(m => m.name).join('、')) + '（可直接重新评估，无需重新上传）</div>';
+    }
+    const noText = st.fileMeta.filter(m => !m.text);
+    if (noText.length) {
+      fileArea += '<div style="font-size:12.5px;color:var(--warning);margin-top:8px">旧版文件摘要：' +
+        esc(noText.map(m => m.name).join('、')) + '（未找到原文件数据，重新评估需重新上传）</div>';
+    }
+  }
+  const inputCard = '<div class="card"><h3>材料评估</h3>' +
+    '<div class="hint">录入候选人随投递一起给的简历和项目链接。系统会一次完成简历初筛、姓名/学校识别、项目质量判断，并把两部分材料交叉验证。</div>' +
+    '<div class="section-label">简历材料</div>' +
+    fileArea +
+    '<div class="section-label">项目链接</div>' +
+    '<div class="hint">每行一个 GitHub / 作品网站 / 在线 Demo 链接。系统会重点看项目是否完整用心、页面是否美观、功能复杂度是否有含金量。</div>' +
+    '<textarea id="projLinks" class="short" placeholder="https://github.com/…&#10;https://…" onblur="persistInputs()">' + esc(pst.input) + '</textarea>' +
+    '<div class="section-label">补充说明（可选）</div>' +
+    '<textarea id="resumeInput" class="short" placeholder="如有文字版简历、投递背景、候选人备注或其他需要说明的信息，可粘贴在这里。" onblur="persistInputs()">' + esc(materialNotes) + '</textarea>' +
+    '<div class="btn-row"><button id="materialBtn" class="btn btn-primary" onclick="runMaterials()"><span class="spinner" style="display:none"></span>评估材料</button>' +
+    (current.stages.material && current.stages.material.at ? '<span style="font-size:12px;color:var(--text-400)">上次材料综合评估：' +
+      new Date(current.stages.material.at).toLocaleString('zh-CN') +
+      (current.stages.material.engine ? ' · ' + esc(current.stages.material.engine) : '') + '</span>' : '') +
+    '</div><div class="error-box" id="resumeErr" style="display:none"></div><div class="error-box" id="projErr" style="display:none"></div></div>';
+  let html = '';
+  if (current.stages.material && current.stages.material.result) {
+    html += renderMaterialSummary();
+    html += '<details class="quiet-edit"><summary>修改或补充材料后重新评估</summary>' + inputCard + '</details>';
+  } else {
+    html += inputCard;
+    html += renderMaterialSummary();
+  }
+  return html;
+}
+
+function renderProjectTab() {
+  const st = current.stages.project;
+  let html = '';
+  const r = st.result;
+  if (r) {
+    let extra = '';
+    if (r.consistencyWithResume) {
+      const c = r.consistencyWithResume;
+      extra += '<div class="section-label">与简历交叉验证</div><div style="margin-bottom:6px">' + tierTag(c.status) + '</div>' +
+        '<ul class="flag-list">' + (c.details || []).map(d => '<li>' + esc(d) + '</li>').join('') + '</ul>';
+    }
+    extra += flagList(r.needsManualCheck, 'concern', '☐', '待人工核验');
+    extra += qList(r.interviewQuestions, '项目相关面试追问');
+    html += resultShell(r, extra, '项目评估结果');
+  }
+  return html;
+}
+
+function renderInterviewTab() {
+  const st = current.stages.interview;
+  let html = '<div class="card"><h3>面试前：生成个性化提纲</h3>' +
+    '<div class="hint">基于简历和项目评估中的疑点，生成针对该候选人的面试问题清单（含逐层追问链），而非千人一面的套题。</div>' +
+    '<div class="btn-row"><button id="outlineBtn" class="btn btn-secondary" onclick="runOutline()"><span class="spinner" style="display:none"></span>生成面试提纲</button></div>';
+  if (st.outline && st.outline.sections) {
+    html += st.outline.sections.map(sec =>
+      '<div class="section-label">' + esc(sec.topic) + '</div><ol class="q-list">' +
+      (sec.questions || []).map(q => '<li>' + esc(q.q) + '<span class="purpose">考察目的：' + esc(q.purpose) + '</span></li>').join('') + '</ol>'
+    ).join('');
+  }
+  html += '</div>';
+
+  html += '<div class="card"><h3>面试后：转写分析</h3>' +
+    '<div class="hint">粘贴腾讯会议导出的转写文本。评估：逻辑结构 / 追问下的表现 / 目标感具体度 / 沟通表达，并与简历、项目交叉验证一致性。</div>' +
+    '<textarea id="ivInput" placeholder="在此粘贴面试转写全文…" onblur="persistInputs()">' + esc(st.input) + '</textarea>' +
+    '<div class="btn-row"><button id="ivBtn" class="btn btn-primary" onclick="runInterview()"><span class="spinner" style="display:none"></span>分析面试记录</button>' +
+    (st.at ? '<span style="font-size:12px;color:var(--text-400)">上次评估：' + new Date(st.at).toLocaleString('zh-CN') + (st.engine ? ' · ' + esc(st.engine) : '') + '</span>' : '') +
+    '</div><div class="error-box" id="ivErr" style="display:none"></div></div>';
+
+  const r = st.result;
+  if (r) {
+    let extra = '';
+    extra += trialRecommendationBlock(r.trialRecommendation);
+    if (r.consistency) {
+      extra += '<div class="section-label">跨阶段一致性</div><div style="margin-bottom:6px">' + tierTag(r.consistency.status) + '</div>' +
+        '<ul class="flag-list">' + (r.consistency.issues || []).map(i => '<li class="concern">' + esc(i) + '</li>').join('') + '</ul>';
+    }
+    if (r.honestySignals) {
+      extra += flagList(r.honestySignals.positive, 'pos', '＋', '诚信正面信号');
+      extra += flagList(r.honestySignals.negative, 'neg', '－', '诚信负面信号');
+    }
+    html += resultShell(r, extra);
+  }
+  return html;
+}
+
+function renderTrialTab() {
+  const st = current.stages.trial;
+  const wc = countChineseWords(st.input || '');
+  const trialFiles = st.fileMeta || [];
+  let trialFileArea = '<div class="upload-zone" onclick="document.getElementById(\'trialFile\').click()">' +
+    '<div style="font-size:14px;color:var(--text-100);font-weight:500">上传试稿文件</div>' +
+    '<div style="font-size:12.5px;color:var(--text-400)">支持 DOC / DOCX / PDF / TXT / Markdown。飞书文档请先导出为 PDF 或 DOCX；私有飞书链接无法直接读取登录态。</div>' +
+    '<input type="file" id="trialFile" accept=".doc,.docx,.pdf,.txt,.md,.markdown,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown,application/pdf" multiple style="display:none" onchange="onTrialFile(this)"></div>';
+  if (trialFiles.length) {
+    trialFileArea += '<div style="font-size:12.5px;color:var(--success);margin-top:8px">✓ 已导入：' +
+      esc(trialFiles.map(f => f.name).join('、')) + '</div>';
+  }
+  let html = '<div class="card"><h3>试稿评审</h3>' +
+    '<div class="hint">粘贴或上传试稿全文。评估维度：选题与读者意识 / 结构与逻辑 / 活人感与可读性 / 实战深度与有用性 / AI直出程度 / 事实错误风险。</div>' +
+    '<div class="section-label">试稿正文</div>' +
+    trialFileArea +
+    '<textarea id="trialInput" style="margin-top:10px" placeholder="在此粘贴试稿全文…" onblur="persistInputs()" oninput="document.getElementById(\'wcLive\').innerHTML=wcHtml(countChineseWords(this.value))">' + esc(st.input) + '</textarea>' +
+    '<div class="btn-row"><button id="trialBtn" class="btn btn-primary" onclick="runTrial()"><span class="spinner" style="display:none"></span>评审试稿</button>' +
+    '<span class="wc-display" id="wcLive">' + wcHtml(wc) + '</span>' +
+    (st.at ? '<span style="font-size:12px;color:var(--text-400)">上次评估：' + new Date(st.at).toLocaleString('zh-CN') + (st.engine ? ' · ' + esc(st.engine) : '') + '</span>' : '') +
+    '</div><div class="error-box" id="trialErr" style="display:none"></div></div>';
+
+  const r = st.result;
+  if (r) {
+    let extra = '';
+    if (r.hardRequirements) {
+      extra += '<div class="section-label">硬性要求核验</div>' + r.hardRequirements.map(h => {
+        const cls = h.pass === true ? 'pass' : (h.pass === false ? 'fail' : 'unk');
+        const mark = h.pass === true ? '✓' : (h.pass === false ? '✕' : '?');
+        return '<div class="hard-req"><span class="hr-mark ' + cls + '">' + mark + '</span><span><b>' + esc(h.item) + '</b>　' + esc(h.notes) + '</span></div>';
+      }).join('');
+    }
+    if (r.aiGeneratedAssessment) {
+      const a = r.aiGeneratedAssessment;
+      const cls = a.level === '低' ? 'tag-good' : (a.level === '中' ? 'tag-mid' : 'tag-bad');
+      extra += '<div class="section-label">AI直出程度评估</div>' +
+        '<div style="margin-bottom:6px"><span class="tag ' + cls + '">AI直出可能性：' + esc(a.level) + '</span></div>' +
+        '<ul class="flag-list">' + (a.signals || []).map(sg => '<li>' + esc(sg) + '</li>').join('') + '</ul>' +
+        (a.note ? '<div style="font-size:13px;color:var(--text-400);margin-top:4px">' + esc(a.note) + '</div>' : '');
+    }
+    extra += flagList(r.factualErrorRisks, 'concern', '⚠', '事实性错误风险');
+    html += resultShell(r, extra);
+  }
+  return html;
+}
+
+function wcHtml(wc) {
+  const ok = wc >= 2000;
+  const best = wc >= 2000 && wc <= 2500;
+  return '当前字数（去空白）：<b>' + wc + '</b> <span class="' + (ok ? 'ok' : 'no') + '">' +
+    (ok ? (best ? '✓ 在最佳区间 2000–2500' : '✓ 达标（略超最佳区间2500）') : '✕ 未达 2000 字硬性要求') + '</span>';
+}
+
+function renderFinalReportSummary() {
+  const r = current.stages.final && current.stages.final.result;
+  if (!r || !r.recommendation) return '';
+  let html = '<div class="card"><div class="result-header"><h4>最终建议摘要</h4>' +
+    tierTag(r.recommendation.decision) + '</div>' +
+    '<div class="result-summary">' + esc(r.recommendation.rationale || '') + '</div>';
+  html += flagList(r.strengths, 'pos', '＋', '核心优势');
+  html += flagList(r.risks, 'neg', '－', '主要风险');
+  html += '</div>';
+  return html;
+}
+
+function renderFinalTab() {
+  const st = current.stages.final;
+  const done = ['resume','project','interview','trial'].filter(k => current.stages[k].result).length;
+  let staleWarn = '';
+  if (st.result && st.at) {
+    const later = ['resume','project','interview','trial'].some(k => {
+      const a = current.stages[k].at;
+      return a && new Date(a) > new Date(st.at);
+    });
+    if (later) staleWarn = '<div class="stale-note">⚠ 综合报告生成后，有阶段评估已更新，建议重新生成。</div>';
+  }
+  let html = '<div class="card"><h3>综合评估报告</h3>' +
+    '<div class="hint">汇总四阶段证据链，输出核心能力总评、守信真诚跨阶段验证、不一致点清单和录用建议。已完成阶段：' + done + '/4（至少需2个）。</div>' +
+    '<div class="btn-row"><button id="finalBtn" class="btn btn-primary" onclick="runFinal()"><span class="spinner" style="display:none"></span>' + (st.result ? '重新生成' : '生成综合报告') + '</button>' +
+    (st.at ? '<span style="font-size:12px;color:var(--text-400)">生成于：' + new Date(st.at).toLocaleString('zh-CN') + (st.engine ? ' · ' + esc(st.engine) : '') + '</span>' : '') +
+    '</div>' + staleWarn + '<div class="error-box" id="finalErr" style="display:none"></div></div>';
+
+  const r = st.result;
+  if (r) {
+    let body = '<div class="card">';
+    if (r.recommendation) {
+      body += '<div class="result-header"><h4>最终建议</h4>' + tierTag(r.recommendation.decision) + '</div>' +
+        '<div class="result-summary">' + esc(r.recommendation.rationale) + '</div>';
+    }
+    if (r.scoreSummary) {
+      body += '<div class="section-label">核心能力总评</div>' + dimRows(r.scoreSummary.map(x => ({ name: x.dimension, score: x.score, evidence: x.basis ? [x.basis] : [] })));
+    }
+    if (r.integrityAssessment) {
+      const ia = r.integrityAssessment;
+      const cls = ia.level === '高' ? 'tag-good' : (ia.level === '中' ? 'tag-mid' : 'tag-bad');
+      body += '<div class="section-label">守信与真诚（跨阶段证据链）</div>' +
+        '<div style="margin-bottom:6px"><span class="tag ' + cls + '">诚信评估：' + esc(ia.level) + '</span></div>' +
+        '<ul class="flag-list">' + (ia.evidenceChain || []).map(e => '<li>' + esc(e) + '</li>').join('') + '</ul>';
+    }
+    body += flagList(r.inconsistencies, 'concern', '⚠', '跨阶段不一致点');
+    body += flagList(r.strengths, 'pos', '＋', '核心优势');
+    body += flagList(r.risks, 'neg', '－', '主要风险');
+    if (r.recommendation && r.recommendation.onboardingSuggestions && r.recommendation.onboardingSuggestions.length) {
+      body += flagList(r.recommendation.onboardingSuggestions, '', '→', '入职培养建议');
+    }
+    body += '</div>';
+    html += body;
+  }
+  return html;
+}
+
+init();
+</script>
+</body>
+</html>

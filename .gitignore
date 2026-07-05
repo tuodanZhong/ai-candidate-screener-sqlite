@@ -1,0 +1,9 @@
+data/*.sqlite3
+data/*.sqlite3-*
+server.log
+__pycache__/
+*.pyc
+.DS_Store
+.env
+.env.*
+!.env.example

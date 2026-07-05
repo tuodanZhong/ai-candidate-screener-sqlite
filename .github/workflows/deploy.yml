@@ -1,0 +1,96 @@
+name: Deploy
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+      DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+      DEPLOY_PATH: ${{ secrets.DEPLOY_PATH || '/home/ubuntu/ai-candidate-screener-sqlite' }}
+      SERVICE_NAME: ${{ secrets.SERVICE_NAME || 'ai-candidate-screener' }}
+      APP_PORT: ${{ secrets.APP_PORT || '8765' }}
+      DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate server code
+        run: python3 -m py_compile server.py
+
+      - name: Validate browser script
+        run: |
+          awk '/<script>/{flag=1;next}/<\/script>/{flag=0}flag' index.html > /tmp/app-script.js
+          node --check /tmp/app-script.js
+
+      - name: Package app
+        run: |
+          tar \
+            --exclude='./data/candidates.sqlite3' \
+            --exclude='./data/*.sqlite3-*' \
+            --exclude='./server.log' \
+            --exclude='./__pycache__' \
+            --exclude='./.git' \
+            -czf /tmp/ai-candidate-screener-sqlite.tar.gz .
+
+      - name: Configure SSH
+        run: |
+          test -n "$DEPLOY_HOST"
+          test -n "$DEPLOY_USER"
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts
+
+      - name: Upload package
+        run: |
+          scp -i ~/.ssh/deploy_key /tmp/ai-candidate-screener-sqlite.tar.gz \
+            "$DEPLOY_USER@$DEPLOY_HOST:/tmp/ai-candidate-screener-sqlite.tar.gz"
+          printf 'DEEPSEEK_API_KEY=%s\n' "$DEEPSEEK_API_KEY" > /tmp/ai-candidate-screener.env
+          scp -i ~/.ssh/deploy_key /tmp/ai-candidate-screener.env \
+            "$DEPLOY_USER@$DEPLOY_HOST:/tmp/ai-candidate-screener.env"
+
+      - name: Install and restart service
+        run: |
+          ssh -i ~/.ssh/deploy_key "$DEPLOY_USER@$DEPLOY_HOST" \
+            "DEPLOY_PATH='$DEPLOY_PATH' SERVICE_NAME='$SERVICE_NAME' APP_PORT='$APP_PORT' bash -s" <<'REMOTE'
+          set -euo pipefail
+
+          PKG=/tmp/ai-candidate-screener-sqlite.tar.gz
+          TMP="${DEPLOY_PATH}.new"
+          PREV="${DEPLOY_PATH}.prev"
+
+          rm -rf "$TMP"
+          mkdir -p "$TMP"
+          tar -xzf "$PKG" -C "$TMP"
+          mkdir -p "$TMP/data"
+
+          if [ -f "$DEPLOY_PATH/data/candidates.sqlite3" ]; then
+            cp "$DEPLOY_PATH/data/candidates.sqlite3" "$HOME/candidates.sqlite3.backup.$(date +%Y%m%d%H%M%S)"
+            cp "$DEPLOY_PATH/data/candidates.sqlite3" "$TMP/data/candidates.sqlite3"
+          fi
+
+          rm -rf "$PREV"
+          if [ -d "$DEPLOY_PATH" ]; then
+            mv "$DEPLOY_PATH" "$PREV"
+          fi
+          mv "$TMP" "$DEPLOY_PATH"
+          if [ -f /tmp/ai-candidate-screener.env ]; then
+            mv /tmp/ai-candidate-screener.env "$DEPLOY_PATH/.env"
+            chmod 600 "$DEPLOY_PATH/.env"
+          fi
+
+          python3 -m py_compile "$DEPLOY_PATH/server.py"
+          sudo -n systemctl restart "$SERVICE_NAME"
+          systemctl is-active "$SERVICE_NAME"
+          curl -sS "http://127.0.0.1:${APP_PORT}/api/health"
+          REMOTE
