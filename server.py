@@ -41,6 +41,8 @@ MAX_BODY_BYTES = 80 * 1024 * 1024
 MAX_FETCH_BYTES = 2 * 1024 * 1024
 SESSION_COOKIE = "screener_session"
 SESSION_TTL_SECONDS = 12 * 60 * 60
+ADMIN_USERNAME = "钟志远"
+PASSWORD_ITERATIONS = 210_000
 
 
 def load_env_file(path: Path) -> None:
@@ -121,6 +123,123 @@ def configured_users() -> dict[str, str]:
             return {}
     password = configured_password()
     return {"admin": password} if password else {}
+
+
+def hash_password(password: str, salt: str | None = None) -> tuple[str, str]:
+    salt = salt or secrets.token_urlsafe(18)
+    digest = hashlib.pbkdf2_hmac(
+        "sha256",
+        password.encode("utf-8"),
+        salt.encode("utf-8"),
+        PASSWORD_ITERATIONS,
+    )
+    return salt, base64.urlsafe_b64encode(digest).decode("ascii")
+
+
+def verify_password(password: str, salt: str, stored_hash: str) -> bool:
+    _, actual = hash_password(password, salt)
+    return hmac.compare_digest(actual, stored_hash)
+
+
+def seed_users_from_env(conn: sqlite3.Connection) -> None:
+    existing = conn.execute("SELECT COUNT(*) FROM app_users").fetchone()[0]
+    if existing:
+        return
+    for username, password in configured_users().items():
+        username = username.strip()
+        if not username or not password:
+            continue
+        salt, password_hash = hash_password(password)
+        conn.execute(
+            """
+            INSERT INTO app_users(username, password_hash, salt, is_admin, created_at, updated_at)
+            VALUES (?, ?, ?, ?, datetime('now'), datetime('now'))
+            """,
+            (username, password_hash, salt, 1 if username == ADMIN_USERNAME else 0),
+        )
+
+
+def users_configured(db_path: Path) -> bool:
+    with sqlite3.connect(db_path) as conn:
+        return conn.execute("SELECT 1 FROM app_users LIMIT 1").fetchone() is not None
+
+
+def user_exists(db_path: Path, username: str) -> bool:
+    with sqlite3.connect(db_path) as conn:
+        row = conn.execute("SELECT 1 FROM app_users WHERE username = ?", (username,)).fetchone()
+    return row is not None
+
+
+def user_is_admin(db_path: Path, username: str | None) -> bool:
+    if not username:
+        return False
+    if username == ADMIN_USERNAME:
+        return True
+    with sqlite3.connect(db_path) as conn:
+        row = conn.execute("SELECT is_admin FROM app_users WHERE username = ?", (username,)).fetchone()
+    return bool(row and row[0])
+
+
+def verify_user_login(db_path: Path, username: str, password: str) -> bool:
+    with sqlite3.connect(db_path) as conn:
+        row = conn.execute(
+            "SELECT password_hash, salt FROM app_users WHERE username = ?",
+            (username,),
+        ).fetchone()
+    if not row:
+        return False
+    return verify_password(password, row[1], row[0])
+
+
+def list_users(db_path: Path) -> list[dict]:
+    with sqlite3.connect(db_path) as conn:
+        rows = conn.execute(
+            """
+            SELECT username, is_admin, created_at, updated_at
+            FROM app_users
+            ORDER BY is_admin DESC, created_at ASC, username ASC
+            """
+        ).fetchall()
+    return [
+        {"username": r[0], "isAdmin": bool(r[1]), "createdAt": r[2], "updatedAt": r[3]}
+        for r in rows
+    ]
+
+
+def upsert_user(db_path: Path, username: str, password: str) -> None:
+    username = username.strip()
+    if not username:
+        raise ValueError("账号名不能为空")
+    if not password:
+        raise ValueError("密码不能为空")
+    if len(username) > 40:
+        raise ValueError("账号名过长")
+    salt, password_hash = hash_password(password)
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(
+            """
+            INSERT INTO app_users(username, password_hash, salt, is_admin, created_at, updated_at)
+            VALUES (?, ?, ?, ?, datetime('now'), datetime('now'))
+            ON CONFLICT(username) DO UPDATE SET
+                password_hash = excluded.password_hash,
+                salt = excluded.salt,
+                is_admin = CASE WHEN app_users.username = ? THEN 1 ELSE app_users.is_admin END,
+                updated_at = datetime('now')
+            """,
+            (username, password_hash, salt, 1 if username == ADMIN_USERNAME else 0, ADMIN_USERNAME),
+        )
+        conn.commit()
+
+
+def delete_user(db_path: Path, username: str) -> None:
+    username = username.strip()
+    if username == ADMIN_USERNAME:
+        raise ValueError("管理员账号不能删除")
+    with sqlite3.connect(db_path) as conn:
+        cur = conn.execute("DELETE FROM app_users WHERE username = ?", (username,))
+        conn.commit()
+    if cur.rowcount == 0:
+        raise ValueError("账号不存在")
 
 
 class TextExtractor(HTMLParser):
@@ -269,6 +388,19 @@ def init_db(db_path: Path) -> None:
             )
             """
         )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS app_users (
+                username TEXT PRIMARY KEY,
+                password_hash TEXT NOT NULL,
+                salt TEXT NOT NULL,
+                is_admin INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+            )
+            """
+        )
+        seed_users_from_env(conn)
         conn.commit()
 
 
@@ -334,7 +466,19 @@ class AppServer(BaseHTTPRequestHandler):
         morsel = cookie.get(SESSION_COOKIE)
         if not morsel:
             return None
-        return session_user_from_value(morsel.value)
+        username = session_user_from_value(morsel.value)
+        if not username or not user_exists(self.db_path, username):
+            return None
+        return username
+
+    def is_admin(self) -> bool:
+        return user_is_admin(self.db_path, self.current_user())
+
+    def require_admin(self) -> bool:
+        if self.is_admin():
+            return True
+        self.send_json({"ok": False, "error": "forbidden"}, HTTPStatus.FORBIDDEN)
+        return False
 
     def require_auth(self, parsed) -> bool:
         if parsed.path in {"/api/health", "/api/session", "/api/login"}:
@@ -376,7 +520,18 @@ class AppServer(BaseHTTPRequestHandler):
 
         if parsed.path == "/api/session":
             username = self.current_user()
-            self.send_json({"authenticated": bool(username), "username": username or "", "loginRequired": bool(configured_users())})
+            self.send_json({
+                "authenticated": bool(username),
+                "username": username or "",
+                "isAdmin": user_is_admin(self.db_path, username),
+                "loginRequired": users_configured(self.db_path),
+            })
+            return
+
+        if parsed.path == "/api/admin/users":
+            if not self.require_admin():
+                return
+            self.send_json({"ok": True, "users": list_users(self.db_path)})
             return
 
         if not self.require_auth(parsed):
@@ -430,15 +585,13 @@ class AppServer(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         if parsed.path == "/api/login":
             try:
-                users = configured_users()
-                if not users:
-                    self.send_json({"ok": False, "error": "服务端未配置 APP_USERS"}, HTTPStatus.SERVICE_UNAVAILABLE)
+                if not users_configured(self.db_path):
+                    self.send_json({"ok": False, "error": "服务端未配置登录账号"}, HTTPStatus.SERVICE_UNAVAILABLE)
                     return
                 payload = self.read_json_body()
                 username = str(payload.get("username") or "").strip()
                 submitted = str(payload.get("password") or "")
-                expected = users.get(username)
-                if not expected or not hmac.compare_digest(submitted, expected):
+                if not verify_user_login(self.db_path, username, submitted):
                     self.send_json({"ok": False, "error": "账号或密码错误"}, HTTPStatus.UNAUTHORIZED)
                     return
                 body = json.dumps({"ok": True, "username": username}, ensure_ascii=False).encode("utf-8")
@@ -463,6 +616,19 @@ class AppServer(BaseHTTPRequestHandler):
             return
 
         if not self.require_auth(parsed):
+            return
+
+        if parsed.path == "/api/admin/users":
+            if not self.require_admin():
+                return
+            try:
+                payload = self.read_json_body()
+                username = str(payload.get("username") or "").strip()
+                password = str(payload.get("password") or "")
+                upsert_user(self.db_path, username, password)
+                self.send_json({"ok": True, "users": list_users(self.db_path)})
+            except Exception as exc:
+                self.send_json({"ok": False, "error": str(exc)}, HTTPStatus.BAD_REQUEST)
             return
 
         if parsed.path == "/api/llm/deepseek":
@@ -508,6 +674,17 @@ class AppServer(BaseHTTPRequestHandler):
     def do_DELETE(self) -> None:
         parsed = urlparse(self.path)
         if not self.require_auth(parsed):
+            return
+        prefix = "/api/admin/users/"
+        if parsed.path.startswith(prefix):
+            if not self.require_admin():
+                return
+            try:
+                username = unquote(parsed.path[len(prefix) :])
+                delete_user(self.db_path, username)
+                self.send_json({"ok": True, "users": list_users(self.db_path)})
+            except Exception as exc:
+                self.send_json({"ok": False, "error": str(exc)}, HTTPStatus.BAD_REQUEST)
             return
         key = self.store_key_from_path()
         if key is None:

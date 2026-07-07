@@ -97,6 +97,13 @@
     border-top: 1px solid var(--border-light);
   }
   .user-note b { color: var(--text-100); font-weight: 500; }
+  .admin-link {
+    width: calc(100% - 32px); margin: 8px 16px 0; padding: 7px 10px;
+    border: 1px solid var(--border-medium); border-radius: var(--radius-sm);
+    background: var(--bg-000); color: var(--text-100); font-size: 12.5px;
+    font-family: var(--font-sans); cursor: pointer;
+  }
+  .admin-link:hover { border-color: var(--border-strong); }
   .logout-btn {
     width: calc(100% - 32px); margin: 8px 16px 14px; padding: 7px 10px;
     border: 1px solid var(--border-medium); border-radius: var(--radius-sm);
@@ -286,6 +293,25 @@
   .hard-req:last-child { border-bottom: none; }
   .hr-mark { font-weight: 700; min-width: 18px; }
   .hr-mark.pass { color: var(--success); } .hr-mark.fail { color: var(--danger); } .hr-mark.unk { color: var(--warning); }
+  .account-form { display: grid; grid-template-columns: minmax(160px, 1fr) minmax(160px, 1fr) auto; gap: 10px; align-items: center; }
+  .account-form input {
+    min-width: 0; padding: 9px 12px; font-size: 14px;
+    border: 1px solid var(--border-medium); border-radius: var(--radius-sm);
+    background: var(--bg-000); color: var(--text-100); font-family: var(--font-sans);
+  }
+  .account-form input:focus { outline: none; border-color: var(--border-strong); }
+  .account-row {
+    display: grid; grid-template-columns: 1fr auto auto; gap: 12px; align-items: center;
+    padding: 12px 0; border-bottom: 1px solid var(--border-light);
+  }
+  .account-row:last-child { border-bottom: none; }
+  .account-name { min-width: 0; color: var(--text-100); font-weight: 600; }
+  .account-meta { color: var(--text-400); font-size: 12px; margin-top: 1px; }
+  .danger-btn {
+    border: 1px solid rgba(192,57,43,0.25); color: var(--danger); background: rgba(192,57,43,0.03);
+    border-radius: var(--radius-sm); padding: 6px 10px; cursor: pointer; font-family: var(--font-sans);
+  }
+  .danger-btn:hover { background: rgba(192,57,43,0.08); }
 
   .final-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px; margin-bottom: 8px; }
   .final-stat { background: var(--bg-200); border-radius: var(--radius-sm); padding: 14px 16px; }
@@ -298,6 +324,7 @@
     .sidebar { width: 100%; min-width: 0; max-height: 40vh; }
     .main-inner { padding: 24px 18px 80px; }
     .material-overview { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .account-form { grid-template-columns: 1fr; }
   }
 
   @media (max-width: 520px) {
@@ -327,6 +354,7 @@
     </div>
     <div class="storage-note" id="storageNote">数据存储加载中…</div>
     <div class="user-note" id="userNote">当前账号：<b>加载中</b></div>
+    <button class="admin-link" id="adminBtn" style="display:none" onclick="openAdmin()">账号管理</button>
     <button class="logout-btn" onclick="logout()">退出登录</button>
   </aside>
   <main class="main"><div class="main-inner" id="mainArea"></div></main>
@@ -343,6 +371,10 @@ const IDX_KEY = 'screener:index';
 const API_BASE = '';
 let memStore = {};
 let storageMode = 'memory';
+let currentUser = '';
+let currentUserIsAdmin = false;
+let adminMode = false;
+let adminUsers = [];
 
 async function detectStorageMode() {
   try {
@@ -406,13 +438,20 @@ async function logout() {
 
 async function loadCurrentUser() {
   const el = document.getElementById('userNote');
+  const adminBtn = document.getElementById('adminBtn');
   if (!el) return;
   try {
     const resp = await fetch(API_BASE + '/api/session', { cache: 'no-store' });
     const data = await resp.json();
+    currentUser = data.username || '';
+    currentUserIsAdmin = !!data.isAdmin || currentUser === '钟志远';
     el.innerHTML = '当前账号：<b>' + esc(data.username || '未识别') + '</b>';
+    if (adminBtn) adminBtn.style.display = currentUserIsAdmin ? 'block' : 'none';
   } catch(e) {
+    currentUser = '';
+    currentUserIsAdmin = false;
     el.innerHTML = '当前账号：<b>未识别</b>';
+    if (adminBtn) adminBtn.style.display = 'none';
   }
 }
 
@@ -609,6 +648,7 @@ async function init() {
 }
 
 async function addCandidate() {
+  adminMode = false;
   const c = newCandidate();
   memFiles[c.id] = [];
   current = c; activeTab = 'resume';
@@ -616,6 +656,7 @@ async function addCandidate() {
 }
 
 async function openCandidate(id) {
+  adminMode = false;
   const raw = await stGet('screener:cand:' + id);
   if (!raw) return;
   current = JSON.parse(raw);
@@ -631,6 +672,77 @@ async function openCandidate(id) {
   await loadCandidateFiles(id);
   activeTab = hasAnyEvaluation(current.stages) ? 'overview' : 'resume';
   renderSidebar(); renderMain();
+}
+
+async function openAdmin() {
+  adminMode = true;
+  current = null;
+  try {
+    await loadAdminUsers();
+  } catch(e) {
+    adminUsers = [];
+  }
+  renderSidebar();
+  renderMain();
+}
+
+async function loadAdminUsers() {
+  if (!currentUserIsAdmin) return;
+  try {
+    const resp = await fetch(API_BASE + '/api/admin/users', { cache: 'no-store' });
+    const data = await resp.json();
+    if (!resp.ok || !data.ok) throw new Error(data.error || '账号列表加载失败');
+    adminUsers = data.users || [];
+  } catch(e) {
+    adminUsers = [];
+    throw e;
+  }
+}
+
+async function saveAdminUser() {
+  clearError('adminErr');
+  const username = (document.getElementById('adminUsername') || {}).value || '';
+  const password = (document.getElementById('adminPassword') || {}).value || '';
+  if (!username.trim() || !password) {
+    showError('adminErr', '请填写账号名和密码。');
+    return;
+  }
+  setLoading('adminSaveBtn', true);
+  try {
+    const resp = await fetch(API_BASE + '/api/admin/users', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password })
+    });
+    const data = await resp.json();
+    if (!resp.ok || !data.ok) throw new Error(data.error || '保存账号失败');
+    adminUsers = data.users || [];
+    document.getElementById('adminUsername').value = '';
+    document.getElementById('adminPassword').value = '';
+    renderMain();
+  } catch(e) {
+    showError('adminErr', e.message);
+  } finally {
+    setLoading('adminSaveBtn', false);
+  }
+}
+
+async function removeAdminUser(username) {
+  clearError('adminErr');
+  if (username === '钟志远') {
+    showError('adminErr', '管理员账号不能删除。');
+    return;
+  }
+  if (!confirm('确定删除账号「' + username + '」？删除后该账号将无法登录。')) return;
+  try {
+    const resp = await fetch(API_BASE + '/api/admin/users/' + encodeURIComponent(username), { method: 'DELETE' });
+    const data = await resp.json();
+    if (!resp.ok || !data.ok) throw new Error(data.error || '删除账号失败');
+    adminUsers = data.users || [];
+    renderMain();
+  } catch(e) {
+    showError('adminErr', e.message);
+  }
 }
 
 async function deleteCandidate(id, ev) {
@@ -1435,6 +1547,10 @@ function esc(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
+function jsArg(s) {
+  return JSON.stringify(String(s || ''));
+}
+
 const TIER_CLASS = {
   '推荐面试':'tag-good','边缘':'tag-mid','不推荐':'tag-bad',
   '建议给试稿':'tag-good','谨慎给试稿':'tag-mid','不建议给试稿':'tag-bad',
@@ -1513,6 +1629,10 @@ async function switchTab(t) { await persistInputs(); activeTab = t; renderMain()
 
 function renderMain() {
   const area = document.getElementById('mainArea');
+  if (adminMode) {
+    area.innerHTML = renderAdminPage();
+    return;
+  }
   if (!current) {
     area.innerHTML = '<div class="empty-state"><h2>候选人评估</h2>' +
       '<p>材料初筛 → 面试分析 → 试稿评审。每进入新阶段，系统会自动与前序材料交叉验证，让不一致的地方自己浮出来。</p>' +
@@ -1545,6 +1665,36 @@ function renderMain() {
   else html += renderFinalTab();
 
   area.innerHTML = html;
+}
+
+function renderAdminPage() {
+  if (!currentUserIsAdmin) {
+    return '<div class="empty-state"><h2>无权限访问</h2><p>只有管理员账号可以管理登录账号。</p></div>';
+  }
+  const rows = adminUsers.length
+    ? adminUsers.map(u => {
+      const isAdmin = !!u.isAdmin || u.username === '钟志远';
+      const updated = u.updatedAt ? new Date(u.updatedAt.replace(' ', 'T') + 'Z').toLocaleString('zh-CN') : '';
+      return '<div class="account-row"><div><div class="account-name">' + esc(u.username) +
+        (isAdmin ? ' <span class="tag tag-good" style="font-size:11px;padding:1px 8px">管理员</span>' : '') +
+        '</div><div class="account-meta">' + (updated ? '最近更新：' + esc(updated) : '已启用') + '</div></div>' +
+        '<span class="tag tag-neutral">' + (isAdmin ? '不可删除' : '普通账号') + '</span>' +
+        (isAdmin ? '<button class="danger-btn" disabled style="opacity:.45;cursor:not-allowed">删除</button>' :
+          '<button class="danger-btn" onclick="removeAdminUser(' + jsArg(u.username) + ')">删除</button>') +
+        '</div>';
+    }).join('')
+    : '<div style="font-size:13px;color:var(--text-400)">账号列表加载失败或暂无账号。</div>';
+  return '<div class="cand-header"><h2>账号管理</h2>' +
+    '<div class="meta">管理员：' + esc(currentUser || '未识别') + '。新增账号后即可用账号密码登录。</div></div>' +
+    '<div class="card"><h3>添加或重置账号</h3>' +
+    '<div class="hint">输入账号名和密码。若账号已存在，会重置该账号的密码；管理员账号「钟志远」不能删除。</div>' +
+    '<div class="account-form">' +
+    '<input id="adminUsername" placeholder="账号名，例如：张三">' +
+    '<input id="adminPassword" type="password" placeholder="密码">' +
+    '<button id="adminSaveBtn" class="btn btn-primary" onclick="saveAdminUser()"><span class="spinner" style="display:none"></span>保存账号</button>' +
+    '</div><div class="error-box" id="adminErr" style="display:none"></div></div>' +
+    '<div class="card"><div class="result-header"><h4>当前账号</h4><span class="tag tag-neutral">' + adminUsers.length + ' 个</span></div>' +
+    rows + '</div>';
 }
 
 function dimRows(dims) {
