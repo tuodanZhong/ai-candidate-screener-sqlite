@@ -152,11 +152,17 @@ def seed_users_from_env(conn: sqlite3.Connection) -> None:
         salt, password_hash = hash_password(password)
         conn.execute(
             """
-            INSERT INTO app_users(username, password_hash, salt, is_admin, created_at, updated_at)
-            VALUES (?, ?, ?, ?, datetime('now'), datetime('now'))
+            INSERT INTO app_users(username, password_hash, salt, is_admin, created_at, updated_at, last_login_at)
+            VALUES (?, ?, ?, ?, datetime('now'), datetime('now'), NULL)
             """,
             (username, password_hash, salt, 1 if username == ADMIN_USERNAME else 0),
         )
+
+
+def ensure_user_columns(conn: sqlite3.Connection) -> None:
+    columns = {row[1] for row in conn.execute("PRAGMA table_info(app_users)").fetchall()}
+    if "last_login_at" not in columns:
+        conn.execute("ALTER TABLE app_users ADD COLUMN last_login_at TEXT")
 
 
 def users_configured(db_path: Path) -> bool:
@@ -191,17 +197,32 @@ def verify_user_login(db_path: Path, username: str, password: str) -> bool:
     return verify_password(password, row[1], row[0])
 
 
+def record_user_login(db_path: Path, username: str) -> None:
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(
+            "UPDATE app_users SET last_login_at = datetime('now') WHERE username = ?",
+            (username,),
+        )
+        conn.commit()
+
+
 def list_users(db_path: Path) -> list[dict]:
     with sqlite3.connect(db_path) as conn:
         rows = conn.execute(
             """
-            SELECT username, is_admin, created_at, updated_at
+            SELECT username, is_admin, created_at, updated_at, last_login_at
             FROM app_users
             ORDER BY is_admin DESC, created_at ASC, username ASC
             """
         ).fetchall()
     return [
-        {"username": r[0], "isAdmin": bool(r[1]), "createdAt": r[2], "updatedAt": r[3]}
+        {
+            "username": r[0],
+            "isAdmin": bool(r[1]),
+            "createdAt": r[2],
+            "updatedAt": r[3],
+            "lastLoginAt": r[4],
+        }
         for r in rows
     ]
 
@@ -396,10 +417,12 @@ def init_db(db_path: Path) -> None:
                 salt TEXT NOT NULL,
                 is_admin INTEGER NOT NULL DEFAULT 0,
                 created_at TEXT NOT NULL DEFAULT (datetime('now')),
-                updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+                updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+                last_login_at TEXT
             )
             """
         )
+        ensure_user_columns(conn)
         seed_users_from_env(conn)
         conn.commit()
 
@@ -594,6 +617,7 @@ class AppServer(BaseHTTPRequestHandler):
                 if not verify_user_login(self.db_path, username, submitted):
                     self.send_json({"ok": False, "error": "账号或密码错误"}, HTTPStatus.UNAUTHORIZED)
                     return
+                record_user_login(self.db_path, username)
                 body = json.dumps({"ok": True, "username": username}, ensure_ascii=False).encode("utf-8")
                 self.send_response(HTTPStatus.OK)
                 self.send_cookie(make_session_value(username))

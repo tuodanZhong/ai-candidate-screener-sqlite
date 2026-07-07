@@ -1646,10 +1646,10 @@ function renderAdminPage() {
   const rows = adminUsers.length
     ? adminUsers.map(u => {
       const isAdmin = !!u.isAdmin || u.username === '钟志远';
-      const updated = u.updatedAt ? new Date(u.updatedAt.replace(' ', 'T') + 'Z').toLocaleString('zh-CN') : '';
+      const lastLogin = u.lastLoginAt ? new Date(u.lastLoginAt.replace(' ', 'T') + 'Z').toLocaleString('zh-CN') : '';
       return '<div class="account-row"><div><div class="account-name">' + esc(u.username) +
         (isAdmin ? ' <span class="tag tag-good" style="font-size:11px;padding:1px 8px">管理员</span>' : '') +
-        '</div><div class="account-meta">' + (updated ? '最近更新：' + esc(updated) : '已启用') + '</div></div>' +
+        '</div><div class="account-meta">最后登录：' + esc(lastLogin || '从未登录') + '</div></div>' +
         '<span class="tag tag-neutral">' + (isAdmin ? '不可删除' : '普通账号') + '</span>' +
         (isAdmin ? '<button class="danger-btn" disabled style="opacity:.45;cursor:not-allowed">删除</button>' :
           '<button class="danger-btn" onclick="removeAdminUser(' + jsArg(u.username) + ')">删除</button>') +
