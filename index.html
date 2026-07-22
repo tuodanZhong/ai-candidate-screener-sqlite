@@ -775,56 +775,14 @@ async function callDeepSeek(systemPrompt, userText) {
   return data.choices[0].message.content;
 }
 
-/**
- * 统一入口：根据设置和任务特性路由到 DeepSeek 或 Claude。
- * 自动切换Claude的情况：①内容含PDF/图片（DeepSeek不支持读文件）②需要联网搜索（项目阶段）。
- */
 async function callLLM(systemPrompt, content, opts) {
   opts = opts || {};
   const hasBlocks = Array.isArray(content);
-  const hasFiles = hasBlocks && content.some(b => b.type === 'document' || b.type === 'image');
-  const useDS = settings.engine === 'deepseek' && !opts.webSearch && !hasFiles;
-  if (useDS) {
-    const text = hasBlocks ? content.filter(b => b.type === 'text').map(b => b.text).join('\n') : content;
-    return { text: await callDeepSeek(systemPrompt, text), engine: 'DeepSeek' };
-  }
-  let label = 'Claude';
-  if (settings.engine === 'deepseek') {
-    if (hasFiles) label = 'Claude（含文件，自动切换）';
-    else if (opts.webSearch) label = 'Claude（需联网，自动切换）';
-  } else if (opts.webSearch) label = 'Claude（联网）';
-  return { text: await callClaude(systemPrompt, content, opts.webSearch), engine: label };
+  const text = hasBlocks ? content.filter(b => b.type === 'text').map(b => b.text).join('\n') : content;
+  return { text: await callDeepSeek(systemPrompt, text), engine: 'DeepSeek' };
 }
 
-async function callClaude(systemPrompt, userContent, useWebSearch) {
-  // userContent 可以是字符串，也可以是内容块数组（含 document/image 块）
-  const body = {
-    model: 'claude-sonnet-4-6',
-    max_tokens: 1000,
-    system: systemPrompt,
-    messages: [{ role: 'user', content: userContent }]
-  };
-  if (useWebSearch) body.tools = [{ type: 'web_search_20250305', name: 'web_search' }];
-  let resp;
-  try {
-    resp = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
-    });
-  } catch (e) {
-    throw new Error('Claude接口网络请求被拦截（' + e.message + '）。最常见原因：本应用不是在 Claude 中打开的。内置Claude接口只在 claude.ai / Claude App 的应用环境中可用——请回到 Claude 对话里打开本应用，不要下载HTML后本地双击打开（左下角若显示"无持久化存储"警告即说明环境不对）。其他可能：网络波动，可重试。');
-  }
-  if (!resp.ok) {
-    const t = await resp.text();
-    throw new Error('API请求失败 (' + resp.status + ')：' + t.slice(0, 300));
-  }
-  const data = await resp.json();
-  const texts = (data.content || []).filter(b => b.type === 'text').map(b => b.text);
-  return texts.join('\n');
-}
-
-/* ---------- 简历文件（PDF/图片）：仅存于内存，评估结果持久化 ---------- */
+/* ---------- 简历文件（PDF/图片）：本地内存预览，同时随候选人记录持久化 ---------- */
 const memFiles = {}; // { candidateId: [{name, size, media_type, kind:'pdf'|'image', data(base64)}] }
 const ACCEPTED_IMG = ['image/jpeg','image/png','image/gif','image/webp'];
 
@@ -866,7 +824,7 @@ async function onResumeFiles(input) {
       if (text && text.replace(/\s+/g, '').length > 200) {
         list.push({ name: f.name, size: f.size, media_type: 'application/pdf', kind: 'pdf-text', text: text, data: data });
       } else {
-        // 无文字层（扫描件）→ 保留原文件走Claude视觉通道
+        // 无文字层（扫描件）→ 保存原文件，评估前需OCR或粘贴文字
         list.push({ name: f.name, size: f.size, media_type: 'application/pdf', kind: 'pdf', data: data });
       }
     } else if (ACCEPTED_IMG.includes(f.type)) {
@@ -1009,7 +967,7 @@ const JSON_RULE = '你必须只输出一个合法的JSON对象，不要输出任
 /* ================================================================
    各阶段评估 Prompt
 ================================================================ */
-const CONTEXT_INTRO = `你是一家AI新媒体公司的资深招聘评估专家。公司在招"AI产品体验官（实习生/管培生）"：日常深度使用Claude/Codex/GLM等AI产品，每天产出案例/教程类文章和视频，发布在公司自媒体IP账号上。候选人为在读大三学生或未毕业研究生。公司不要求自媒体经验，核心考察底层能力，目标是找到可长期培养、毕业后可转正留任的人才。该岗位不是传统产品经理岗，也不是以产品规划/需求管理为主的岗位；若候选人的长期职业方向明确偏产品经理、产品规划或B端/互联网产品路线，且对AI产品体验、内容表达、案例产出兴趣弱，应视为岗位匹配和长期稳定性风险。评估必须严格基于材料证据，宁可标注"无法判断"也不要脑补。`;
+const CONTEXT_INTRO = `你是一家AI新媒体公司的资深招聘评估专家。公司在招"AI产品体验官（实习生/管培生）"：日常深度使用DeepSeek等AI产品，每天产出案例/教程类文章和视频，发布在公司自媒体IP账号上。候选人为在读大三学生或未毕业研究生。公司不要求自媒体经验，核心考察底层能力，目标是找到可长期培养、毕业后可转正留任的人才。该岗位不是传统产品经理岗，也不是以产品规划/需求管理为主的岗位；若候选人的长期职业方向明确偏产品经理、产品规划或B端/互联网产品路线，且对AI产品体验、内容表达、案例产出兴趣弱，应视为岗位匹配和长期稳定性风险。评估必须严格基于材料证据，宁可标注"无法判断"也不要脑补。`;
 
 const RESUME_PROMPT = CONTEXT_INTRO + `
 
@@ -1032,7 +990,7 @@ const RESUME_PROMPT = CONTEXT_INTRO + `
 - 推荐面试不能只看亮点，必须同时满足学历/基础背景、自驱力、逻辑能力、AI兴趣或项目实践、职业方向/留任可行性均无明显短板。
 
 另外必须准确提取候选人姓名和教育经历：
-- candidateName：候选人姓名。只能从简历正文、简历文件视觉内容或候选人明确提供的文字中提取；不要从文件名、邮箱、微信号或系统临时显示名猜测。如果无法确定，给null。
+- candidateName：候选人姓名。只能从简历正文、PDF文字层提取文本或候选人明确提供的文字中提取；不要从文件名、邮箱、微信号或系统临时显示名猜测。如果无法确定，给null。
 - gender：性别，只能在简历明确出现性别、照片旁标注、或自述中明确写出时填写"男"或"女"；无法确定给null，禁止根据姓名/照片猜测。
 - educationStage：候选人当前/最高在读阶段，输出"本科"或"研究生"；若材料不足给null。
 - graduationYear：预计或最近毕业年份，四位数字字符串（如"2027"）；从教育经历时间段或毕业时间中提取，无法确定给null。
@@ -1286,12 +1244,14 @@ async function runResume(opts) {
   if (!files.length && st.fileMeta) {
     extractedTexts = st.fileMeta.filter(m => m.text).map(m => ({ name: m.name, text: m.text }));
   }
-  const binFiles = files.filter(f => f.kind === 'pdf' || f.kind === 'image');
-  if (!st.input.trim() && !binFiles.length && !extractedTexts.length) {
-    if (st.fileMeta && st.fileMeta.length) {
-      showError('resumeErr', '候选人记录里只有旧版文件摘要「' + st.fileMeta.map(m => m.name).join('、') + '」，没有可读取的原文件数据；请重新上传后再评估。');
+  const unreadableFiles = files.filter(f => f.kind === 'pdf' || f.kind === 'image');
+  if (!st.input.trim() && !extractedTexts.length) {
+    if (unreadableFiles.length) {
+      showError('resumeErr', 'DeepSeek目前只能评估可提取文字的简历。你上传的扫描件/图片原文件已保存，可查看或下载；请上传带文字层的PDF，或把OCR/文字版简历粘贴到「补充说明」。');
+    } else if (st.fileMeta && st.fileMeta.length) {
+      showError('resumeErr', '候选人记录里只有旧版文件摘要「' + st.fileMeta.map(m => m.name).join('、') + '」，没有可读取的原文件数据；请重新上传带文字层的PDF，或粘贴OCR/文字版简历后再评估。');
     } else {
-      showError('resumeErr', '请上传简历文件（PDF/图片）或粘贴简历文字。项目材料可在下方一起填写。');
+      showError('resumeErr', '请上传带文字层的PDF简历，或粘贴简历文字。项目材料可在下方一起填写。');
     }
     return;
   }
@@ -1299,21 +1259,17 @@ async function runResume(opts) {
   clearError('resumeErr');
   if (manageLoading) setLoading(btnId, true);
   try {
-    const blocks = [];
-    for (const f of binFiles) {
-      if (f.kind === 'pdf') blocks.push({ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: f.data } });
-      else blocks.push({ type: 'image', source: { type: 'base64', media_type: f.media_type, data: f.data } });
-    }
     let textPart = isPendingName(current.name)
       ? '当前候选人姓名尚未录入。请从简历材料中识别candidateName；不要把系统临时显示名当作姓名。'
       : '当前候选人显示名：' + current.name + '。仍请以简历材料为准校验candidateName。';
-    if (binFiles.length) textPart += '\n以上文件即候选人简历（' + binFiles.map(f => f.name).join('、') + '），请完整读取后评估。';
+    if (unreadableFiles.length) {
+      textPart += '\n\n【未参与自动评估的原文件】\n以下扫描件/图片已保存供查看下载，但DeepSeek无法直接读取图像内容，本次评估仅基于已提取/粘贴的文字：' + unreadableFiles.map(f => f.name).join('、') + '。';
+    }
     for (const t of extractedTexts) {
       textPart += '\n\n【简历文件《' + t.name + '》提取的文字（提取自PDF文字层，排版信息已丢失，请勿因排版扣分）】\n' + t.text;
     }
     if (st.input.trim()) textPart += '\n\n【补充文字/简历原文】\n' + st.input;
-    blocks.push({ type: 'text', text: textPart });
-    const r = await callLLM(RESUME_PROMPT, blocks, {});
+    const r = await callLLM(RESUME_PROMPT, textPart, {});
     st.result = parseJSONLoose(r.text);
     st.engine = r.engine;
     st.result.eduCheck = checkEducation(st.result.education);
@@ -1871,7 +1827,7 @@ function renderResumeFilesOverview() {
     html += files.map((f, i) => {
       const tag = f.kind === 'pdf-text'
         ? ' <span class="tag tag-good" style="font-size:11px;padding:1px 8px">文字已提取</span>'
-        : (f.kind === 'pdf' ? ' <span class="tag tag-mid" style="font-size:11px;padding:1px 8px">扫描件</span>' : '');
+        : (f.kind === 'pdf' || f.kind === 'image' ? ' <span class="tag tag-mid" style="font-size:11px;padding:1px 8px">需OCR文字</span>' : '');
       const actions = f.data
         ? '<button onclick="openResumeFile(' + i + ')" title="查看原文件">查看</button><button onclick="downloadResumeFile(' + i + ')" title="下载原文件">下载</button>'
         : '<span style="font-size:12px;color:var(--warning)">旧版无原文件</span>';
@@ -1912,13 +1868,13 @@ function renderResumeTab() {
   const materialNotes = st.input || pst.notes || '';
   let fileArea = '<div class="upload-zone" onclick="document.getElementById(\'resumeFile\').click()">' +
     '<div style="font-size:14px;color:var(--text-100);font-weight:500">点击上传简历文件</div>' +
-    '<div style="font-size:12.5px;color:var(--text-400)">支持 PDF（≤20MB）和 JPG/PNG 等图片（每张≤5MB），多页截图可一次多选</div>' +
+    '<div style="font-size:12.5px;color:var(--text-400)">支持带文字层PDF（≤20MB）；扫描件/JPG/PNG可保存查看，但评估前需OCR或粘贴文字</div>' +
     '<input type="file" id="resumeFile" accept=".pdf,image/jpeg,image/png,image/gif,image/webp" multiple style="display:none" onchange="onResumeFiles(this)"></div>';
   if (files.length) {
     fileArea += files.map((f, i) => {
       const tag = f.kind === 'pdf-text'
         ? ' <span class="tag tag-good" style="font-size:11px;padding:1px 8px">文字已提取</span>'
-        : (f.kind === 'pdf' ? ' <span class="tag tag-mid" style="font-size:11px;padding:1px 8px">扫描件·走Claude视觉</span>' : '');
+        : (f.kind === 'pdf' || f.kind === 'image' ? ' <span class="tag tag-mid" style="font-size:11px;padding:1px 8px">需OCR文字</span>' : '');
       const actions = f.data
         ? '<button onclick="openResumeFile(' + i + ')" title="查看原文件">查看</button><button onclick="downloadResumeFile(' + i + ')" title="下载原文件">下载</button>'
         : '<span style="font-size:12px;color:var(--warning)">旧版无原文件</span>';
