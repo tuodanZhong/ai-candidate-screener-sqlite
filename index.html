@@ -1079,17 +1079,22 @@ const INTERVIEW_PROMPT = CONTEXT_INTRO + `
 
 面试评分校准：
 - 4-5分必须有具体、可追问、可验证的行为证据；泛泛表达、经历名头、实习机构、做过公众号/活动，本身不能给高分。
+- 4分代表"候选人自己已经展示出较强能力"，不是"面试官提示后能跟上"。如果关键方法、框架、复盘是面试官补充或引导出来的，候选人未主动抽象，相关维度最多3分。
+- 5分只给非常少见的优秀表现：候选人能主动搭框架、举细节、反思失败、抽象方法，并显示持续行动和高标准。普通优秀、表达顺畅或准备充分不能给5分。
+- 如果回答中出现"先讲结论后补充、稍显跳跃、未主动反思、未展示结构化分析、不够深入、停留在了解/尝试"等信号，不能因为其他亮点把该核心维度打到4分。
 - 如果候选人有AI使用经验，但追问后显示只是浅层尝试、没有深度工作流和验证习惯，AI使用深度不得超过3分。
 - 如果候选人做过内容/媒体经历，但无法结构化分析阅读量、传播效果或内容方法，结构化思维不得超过3分。
 - 如果候选人目标感弱、拼劲不足、只满足于完成小项目/活动，目标感具体度不得超过3分。
+- 如果多个核心维度都有"需要面试官补总结/补方法"的情况，说明候选人独立抽象和迁移能力不足，应倾向"不建议给试稿"。
 
 交叉验证：面试口述与简历、项目评估结果是否一致，列出所有明确不一致点。注意候选人未提供全部项目链接或只提供代表项目是正常情况，不能单独视为不一致或诚信风险；只有口述与已提供材料/简历之间存在明确冲突时才标记。
 诚信信号：主动承认不会/不懂（正面）、把不确定说成确定、明显背稿、夸大（负面），引用原文。
 
 付费试稿建议规则：
 - "建议给试稿"：必须同时满足：AI使用深度>=4、结构化思维与抽象能力>=4、目标感具体度与拼劲>=4、沟通表达>=4，且职业方向无明显不匹配、没有明显诚信风险。试稿要花钱，只有明显值得进一步验证真实产出的候选人才给。
-- "谨慎给试稿"：有一个核心亮点但证据不足，或某个核心维度为3分、职业方向偏产品但尚未确认是否愿意长期做AI产品体验/内容产出；只有在候选人池不足、或HR愿意用试稿验证关键疑点时才建议给。
+- "谨慎给试稿"：只能用于"几乎达到付费门槛但仍有一个轻微疑点"。如果AI深度、结构化抽象、目标感/拼劲任一项只有3分，默认不是谨慎，而是不建议；除非材料中有非常强的反证，才可谨慎给。
 - "不建议给试稿"：只要AI使用深度、结构化思维、目标感/拼劲中任一项明显不足（<=3），或面试显示自驱力弱、逻辑差、AI实践很浅、留任不可行、职业方向明显不匹配且长期稳定性弱、诚信风险明显，就不值得支付试稿成本。
+- 只要"逻辑结构、追问下的表现、AI使用深度、结构化思维与抽象能力、目标感具体度与拼劲"中有两项存在明显concerns，即使分数看起来达到4，也应输出"不建议给试稿"，因为付费试稿不是用来替面试补救核心门槛的。
 - trialRecommendation必须用成本意识说明：为什么值得/不值得花钱进入试稿，试稿要验证的关键点是什么。
 - 校准示例：如果候选人有AI使用场景但追问后多为浅层了解；做过公众号/媒体实习但无法抽象阅读量问题；目标感局限在完成当前小项目或活动、拼劲不足，则应输出"不建议给试稿"，不要因为经历看起来相关就给"建议给试稿"。
 
@@ -1438,7 +1443,7 @@ async function runInterview() {
     const prior = priorContext();
     const r = await callLLM(INTERVIEW_PROMPT,
       '候选人姓名：' + current.name + '\n\n【面试转写文本】\n' + st.input + (prior ? '\n\n【前序阶段结果，用于交叉验证】\n' + prior : ''), {});
-    st.result = parseJSONLoose(r.text);
+    st.result = normalizeInterviewResult(parseJSONLoose(r.text));
     st.engine = r.engine;
     st.at = new Date().toISOString();
     await saveCurrent(); renderSidebar(); renderMain();
@@ -1720,6 +1725,91 @@ function flagList(items, cls, prefix, title) {
     items.map(i => '<li class="' + cls + '">' + prefix + ' ' + esc(i) + '</li>').join('') + '</ul>';
 }
 
+function dimByName(result, name) {
+  return ((result && result.dimensions) || []).find(d => d.name === name);
+}
+
+function dimScore(result, name) {
+  const d = dimByName(result, name);
+  const n = d && d.score !== null && d.score !== undefined ? Number(d.score) : NaN;
+  return Number.isFinite(n) ? n : null;
+}
+
+function dimConcernText(d) {
+  return [].concat(d && d.evidence || [], d && d.concerns || []).join(' ');
+}
+
+function pushUnique(arr, text) {
+  if (!arr.includes(text)) arr.push(text);
+}
+
+function capInterviewDim(result, name, pattern, reason) {
+  const d = dimByName(result, name);
+  if (!d) return false;
+  const text = dimConcernText(d);
+  if (!pattern.test(text)) return false;
+  const score = d.score !== null && d.score !== undefined ? Number(d.score) : null;
+  if (score && score > 3) d.score = 3;
+  d.concerns = d.concerns || [];
+  pushUnique(d.concerns, '系统校准：' + reason + '，该维度最高按3分处理。');
+  return true;
+}
+
+function normalizeInterviewResult(result) {
+  if (!result || result.__strictInterviewCalibrated) return result;
+  const triggered = [];
+  const rules = [
+    ['逻辑结构', /跳跃|先讲结论后补充|没有.*框架|不够结构|未主动.*框架|面试官.*(补|引导|提示)/, '逻辑框架不是候选人稳定主动呈现'],
+    ['追问下的表现', /未主动反思|面试官.*(补|总结|引导|提示)|追问.*不够|不够深入|泛泛|含糊|绕圈/, '追问后仍缺少独立复盘或深层细节'],
+    ['AI使用深度', /不够深入|浅层|泛泛|没有.*工作流|没有.*验证|未形成|停留在|初学|尝试为主/, 'AI使用缺少深度工作流、验证习惯或复盘'],
+    ['结构化思维与抽象能力', /未展示.*结构化|无法抽象|不能抽象|面试官.*(补|总结|引导|提示)|只描述|没有.*分析|缺少.*抽象/, '未能主动把经历抽象成可迁移方法'],
+    ['目标感具体度与拼劲', /目标感.*弱|拼劲.*不足|小项目|活动|不够|缺少.*长期|不具体|局限|满足于/, '目标感、长期投入或挑战欲证据不足']
+  ];
+  rules.forEach(([name, pattern, reason]) => {
+    if (capInterviewDim(result, name, pattern, reason)) triggered.push(name);
+  });
+
+  const hardCore = ['AI使用深度', '结构化思维与抽象能力', '目标感具体度与拼劲'];
+  const expandedCore = ['逻辑结构', '追问下的表现'].concat(hardCore);
+  const failing = expandedCore.filter(name => {
+    const s = dimScore(result, name);
+    return s !== null && s <= 3;
+  });
+  const career = result.careerDirection && result.careerDirection.status;
+  const careerBad = career === '不匹配';
+  const shouldRejectTrial = failing.length || careerBad || triggered.length >= 2;
+
+  if (shouldRejectTrial) {
+    const reasons = [];
+    if (failing.length) reasons.push('核心维度未达到付费试稿门槛：' + failing.join('、'));
+    if (triggered.length >= 2) reasons.push('多个核心维度存在明显短板：' + triggered.join('、'));
+    if (careerBad) reasons.push('职业方向不匹配');
+    const reasonText = reasons.join('；');
+    result.trialRecommendation = result.trialRecommendation || {};
+    result.trialRecommendation.decision = '不建议给试稿';
+    result.trialRecommendation.costRationale = '系统严格校准：试稿需要付费，只给核心门槛稳定通过的候选人。' + reasonText + '，当前不值得用付费试稿补救这些面试短板。';
+    result.trialRecommendation.trialFocus = result.trialRecommendation.trialFocus || ['如HR仍想推进，需先人工复核AI使用深度、结构化抽象能力和目标感是否有强反证。'];
+    result.conclusion = result.conclusion || {};
+    result.conclusion.tier = '不建议给试稿';
+    result.conclusion.summary = '面试中出现核心能力短板，尤其是需要候选人独立展示的AI深度、结构化抽象或目标感未稳定通过。付费试稿成本不应投入到核心门槛尚未过关的候选人。';
+  } else if (result.trialRecommendation && result.trialRecommendation.decision === '建议给试稿') {
+    const missingHard = hardCore.filter(name => {
+      const s = dimScore(result, name);
+      return s === null || s < 4;
+    });
+    if (missingHard.length) {
+      result.trialRecommendation.decision = '谨慎给试稿';
+      result.trialRecommendation.costRationale = '系统严格校准：' + missingHard.join('、') + '未稳定达到4分，不能直接建议进入付费试稿。';
+      if (result.conclusion) {
+        result.conclusion.tier = '谨慎给试稿';
+        result.conclusion.summary = result.trialRecommendation.costRationale;
+      }
+    }
+  }
+  Object.defineProperty(result, '__strictInterviewCalibrated', { value: true, enumerable: false, configurable: true });
+  return result;
+}
+
 function resultShell(r, extra, title) {
   const tier = r.conclusion ? r.conclusion.tier : '';
   const summary = r.conclusion ? r.conclusion.summary : '';
@@ -1741,7 +1831,11 @@ function trialRecommendationBlock(rec) {
 function stageResult(stageKey) {
   const st = current.stages[stageKey];
   if (!st) return null;
-  return stageKey === 'interview' && st.outline && !st.result ? null : st.result;
+  if (stageKey === 'interview') {
+    if (st.outline && !st.result) return null;
+    return normalizeInterviewResult(st.result);
+  }
+  return st.result;
 }
 
 function stageTierText(stageKey) {
@@ -1957,7 +2051,7 @@ function renderInterviewTab() {
     (st.at ? '<span style="font-size:12px;color:var(--text-400)">上次评估：' + new Date(st.at).toLocaleString('zh-CN') + (st.engine ? ' · ' + esc(st.engine) : '') + '</span>' : '') +
     '</div><div class="error-box" id="ivErr" style="display:none"></div></div>';
 
-  const r = st.result;
+  const r = stageResult('interview');
   if (r) {
     let extra = '';
     extra += trialRecommendationBlock(r.trialRecommendation);
