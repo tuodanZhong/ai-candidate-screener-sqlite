@@ -733,6 +733,7 @@ async function deleteCandidate(id, ev) {
    API 调用层
 ================================================================ */
 /* ---------- 211/985 高校名单（已固化，不随双一流调整变动） ---------- */
+const UNIV_985 = ['清华大学','北京大学','中国人民大学','北京航空航天大学','北京理工大学','中国农业大学','北京师范大学','中央民族大学','南开大学','天津大学','大连理工大学','东北大学','吉林大学','哈尔滨工业大学','复旦大学','同济大学','上海交通大学','华东师范大学','南京大学','东南大学','浙江大学','中国科学技术大学','厦门大学','山东大学','中国海洋大学','武汉大学','华中科技大学','湖南大学','中南大学','国防科技大学','国防科学技术大学','中山大学','华南理工大学','四川大学','电子科技大学','重庆大学','西安交通大学','西北工业大学','西北农林科技大学','兰州大学'];
 const UNIV_211 = ['中国地质大学','中国石油大学','清华大学','北京大学','中国人民大学','北京航空航天大学','北京理工大学','北京科技大学','北京化工大学','北京邮电大学','中国农业大学','北京林业大学','北京中医药大学','北京师范大学','北京外国语大学','中国传媒大学','中央财经大学','对外经济贸易大学','北京体育大学','中央音乐学院','中央民族大学','中国政法大学','华北电力大学','华北电力大学(保定)','中国石油大学(北京)','中国地质大学(北京)','中国矿业大学(北京)','南开大学','天津大学','天津医科大学','大连理工大学','东北大学','辽宁大学','大连海事大学','吉林大学','东北师范大学','延边大学','哈尔滨工业大学','哈尔滨工程大学','东北农业大学','东北林业大学','复旦大学','上海交通大学','同济大学','华东师范大学','东华大学','上海大学','上海财经大学','上海外国语大学','华东理工大学','第二军医大学','海军军医大学','南京大学','东南大学','南京农业大学','南京航空航天大学','中国矿业大学','中国药科大学','河海大学','南京师范大学','南京理工大学','苏州大学','江南大学','浙江大学','中国科学技术大学','合肥工业大学','安徽大学','厦门大学','福州大学','南昌大学','山东大学','中国海洋大学','中国石油大学(华东)','武汉大学','华中科技大学','中国地质大学(武汉)','华中农业大学','华中师范大学','武汉理工大学','中南财经政法大学','湖南大学','中南大学','湖南师范大学','国防科技大学','国防科学技术大学','中山大学','华南理工大学','华南师范大学','暨南大学','广西大学','海南大学','四川大学','电子科技大学','西南交通大学','西南财经大学','四川农业大学','重庆大学','西南大学','云南大学','贵州大学','西安交通大学','西北工业大学','西北农林科技大学','陕西师范大学','西安电子科技大学','西北大学','长安大学','第四军医大学','空军军医大学','兰州大学','新疆大学','石河子大学','内蒙古大学','郑州大学','太原理工大学','河北工业大学','宁夏大学','青海大学','西藏大学'];
 
 /* ---------- AI评估调用 ---------- */
@@ -1034,20 +1035,30 @@ const MATERIAL_PROMPT = CONTEXT_INTRO + `
 3. 如果简历学历门槛一票否决，整体结论应体现该硬性限制。
 4. dimensions必须且只能输出以下六项，名称必须完全一致：基础背景、自我驱动力、逻辑能力、AI兴趣与使用深度、表达能力、项目实战能力。
 5. 本岗位筛选非常严格，目标是找"非常好的苗子"，不是找普通合格候选人。211/985背景、自我驱动力、逻辑性/学习能力是硬性门槛；AI实践和基础资料也很重要。打分必须拉开差距，禁止因为简历措辞积极就给高分。
-6. 评分校准：
+6. 学历背景分层必须体现差异：
+   - 985高校（如西安交通大学、清华、北大、复旦、上交、浙大等）基础背景通常给5分；如果专业/年级/留任信息有小疑点，可给4分，但不能按普通211处理。
+   - 普通211高校基础背景通常给4分；只有学校+专业+年级都非常匹配且材料完整时才可接近5分。
+   - 双非或学历无法核实时，基础背景不得超过3分，且211/985学历门槛应为"存疑"或"不通过"。
+   - 985候选人代表学习能力和基础素质有更强先验，材料阶段可以适度放宽非核心项：如果逻辑学习能力达到4分且职业方向没有明确不匹配，自我驱动力、AI实践或项目实战中有一项为3分，不应直接"不推荐"，应至少列为"边缘"并进入面试验证。
+   - 985候选人如果自我驱动力和AI/项目都只有3分，但没有2分以下硬伤、没有明确职业方向冲突、逻辑学习能力达到4分，可以给"边缘"而不是"不推荐"；面试重点验证其真实兴趣、长期投入和AI实践深度。
+   - 211候选人不能套用985容错：普通211若自驱力<=3且AI/项目也<=3，通常不推荐或边缘，除非有非常强的作品/表达/长期投入证据。
+   - 985也不是免死金牌：若职业方向明确不匹配、留任不可行、自驱力<=2、逻辑能力<=3，或材料显示完全没有AI/内容岗位兴趣，仍应不推荐。
+7. 评分校准：
    - 5分：材料中有非常强、具体、可验证的证据，明显高于同龄候选人。例如自发长期项目/持续产出/复杂作品/清晰复盘/量化成果。普通实习、普通校园活动、普通项目不能给5分。
    - 4分：有明确证据支持较强，但仍有待面试验证的部分。必须有具体证据，不得凭积极措辞给4分。
    - 3分：普通或材料不足，只能说明"可能还可以"，不能视为通过硬门槛。多个普通经历叠加仍然通常是3分，不自动变4分。
    - 2分：证据弱、泛泛表述、项目简单、逻辑表达一般，或亮点单薄且缺少长期自发投入。
    - 1分：明显不匹配或硬伤。
-7. 缺点优先校准：必须主动列出短板。只写优点、把风险弱化、或用"建议面试验证"掩盖明显不足都是错误的。任何核心硬门槛只有3分或证据不足，都不能直接推荐面试。
-8. 职业方向校准：如果候选人明确表达长期想做产品经理、产品规划、需求分析或互联网产品岗，而不是AI产品体验/内容案例输出，本岗位长期稳定性存疑。材料阶段不能因此武断否定一个能力强的人，但必须降低"推荐面试"确定性，并在hardGates与interviewFocus中要求面试验证。
-9. 结论校准：
-   - "推荐面试"必须同时满足：学历门槛通过或极少数强证据可例外说明；自我驱动力>=4；逻辑能力>=4；基础背景无明显留任硬伤；职业方向匹配或至少没有明显冲突；AI兴趣或项目实战至少一项>=4；且没有两个以上核心维度为3分。不能因为某一项亮眼就整体推荐。
-   - "边缘"用于证据不充分、某个核心项只有3分、职业方向偏产品但仍可通过面试验证、或需要面试确认但尚未一票否决的候选人。边缘不是默认推荐。
+8. 缺点优先校准：必须主动列出短板。只写优点、把风险弱化、或用"建议面试验证"掩盖明显不足都是错误的。普通211/双非候选人任何核心硬门槛只有3分或证据不足，不能直接推荐面试；985候选人可按上面的学历分层规则给到"边缘"或少量放宽。
+9. 职业方向校准：如果候选人明确表达长期想做产品经理、产品规划、需求分析或互联网产品岗，而不是AI产品体验/内容案例输出，本岗位长期稳定性存疑。材料阶段不能因此武断否定一个能力强的人，但必须降低"推荐面试"确定性，并在hardGates与interviewFocus中要求面试验证。
+10. 结论校准：
+   - "推荐面试"普通规则：学历门槛通过；自我驱动力>=4；逻辑能力>=4；基础背景无明显留任硬伤；职业方向匹配或至少没有明显冲突；AI兴趣或项目实战至少一项>=4；且没有两个以上核心维度为3分。不能因为某一项亮眼就整体推荐。
+   - "推荐面试"985例外规则：985背景 + 逻辑学习能力>=4 + 职业方向无明确不匹配 + 无2分以下硬伤时，即使自驱力或AI/项目有一项为3分，也可以推荐面试，但必须在summary中写明"985强背景，建议面试重点验证短板"。
+   - "边缘"用于证据不充分、某个核心项只有3分、985候选人有两项3分但仍有逻辑/学历优势、职业方向偏产品但仍可通过面试验证、或需要面试确认但尚未一票否决的候选人。边缘不是默认推荐。
    - "不推荐"用于211/985门槛未过、自驱力<=3、逻辑能力<=3、AI兴趣/项目实战都普通或证据弱、留任明显不可行、职业方向明确不匹配且缺少AI/内容产出兴趣、或材料明显普通且缺少亮点的候选人。
-10. hardGates必须逐项给出"通过/存疑/不通过"。如果没有强证据支持，就标为"存疑"或"不通过"，不要默认通过。
-11. interviewFocus列出后续面试最该验证的3-5个问题，不要泛泛而谈；如果职业方向存疑，必须包含一个追问其是否愿意长期做AI产品体验、内容案例产出和日常高频工具使用的问题。
+   - 上一条"不推荐"对985候选人需谨慎使用：如果只是自驱力=3、AI/项目=3、职业方向存疑但非明确不匹配，且逻辑学习能力>=4，应优先给"边缘"而不是"不推荐"。
+11. hardGates必须逐项给出"通过/存疑/不通过"。如果没有强证据支持，就标为"存疑"或"不通过"，不要默认通过。985候选人的"自我驱动力硬门槛"或"AI实践匹配度"如果是3分但未见反向硬伤，应标为"存疑"而不是"不通过"。
+12. interviewFocus列出后续面试最该验证的3-5个问题，不要泛泛而谈；如果职业方向存疑，必须包含一个追问其是否愿意长期做AI产品体验、内容案例产出和日常高频工具使用的问题。
 
 ` + JSON_RULE + `
 JSON结构：
@@ -1173,56 +1184,72 @@ function normalizeSchool(name) {
   if (!name) return '';
   return String(name).replace(/[\s（）()、,，.。·]/g, '').trim();
 }
+const UNIV_985_NORM = UNIV_985.map(normalizeSchool);
 const UNIV_211_NORM = UNIV_211.map(normalizeSchool);
 
 // 独立学院/分校等易与母体211混淆的后缀：出现这些词一律不认定为211（除非精确等于名单项）
 const EDU_EXCLUDE_SUFFIX = ['学院', '分校', '独立学院', '继续教育', '成人', '专科', '职业', '技术学院'];
 
-function matchUniv(rawName) {
+function matchUnivInList(rawName, list, normList) {
   // 返回：命中的名单项字符串 | null(非211) | '__REVIEW__'(疑似211分校，需人工确认)
   const norm = normalizeSchool(rawName);
   if (!norm) return null;
   // 1) 精确匹配（最可靠）
-  let idx = UNIV_211_NORM.indexOf(norm);
-  if (idx !== -1) return UNIV_211[idx];
+  let idx = normList.indexOf(norm);
+  if (idx !== -1) return list[idx];
   // 2) "名单项 + 括号校区说明"（如 哈尔滨工业大学（深圳））直接认定
-  idx = UNIV_211_NORM.findIndex(fn => fn.length >= 4 && norm.startsWith(fn) &&
+  idx = normList.findIndex(fn => fn.length >= 4 && norm.startsWith(fn) &&
     /^[（(]?(北京|武汉|华东|保定|东营|威海|珠海|深圳|校区)?[)）]?$/.test(norm.slice(fn.length)));
-  if (idx !== -1) return UNIV_211[idx];
+  if (idx !== -1) return list[idx];
   // 3) 含"学院/分校"等后缀：需区分"211的分校区(算)"与"独立学院/双非(不算)"，机器无法可靠判定→交人工
   const hasBranchSuffix = EDU_EXCLUDE_SUFFIX.some(sfx => norm.endsWith(sfx));
   if (hasBranchSuffix) {
     // 若去掉"分校/校区"后精确等于某211，视为疑似分校待确认；否则(如独立学院)判否
     const stripped = norm.replace(/(威海|青岛|深圳|珠海|北京|武汉|华东|保定)?(分校|校区)$/, '');
-    if (UNIV_211_NORM.indexOf(stripped) !== -1 && /分校|校区/.test(norm)) return '__REVIEW__';
+    if (normList.indexOf(stripped) !== -1 && /分校|校区/.test(norm)) return '__REVIEW__';
     return null;
   }
   return null;
 }
 
+function matchUniv(rawName) {
+  return matchUnivInList(rawName, UNIV_211, UNIV_211_NORM);
+}
+
+function matchUnivTier(rawName) {
+  const hit985 = matchUnivInList(rawName, UNIV_985, UNIV_985_NORM);
+  if (hit985 && hit985 !== '__REVIEW__') return { tier: '985', hit: hit985 };
+  const hit211 = matchUnivInList(rawName, UNIV_211, UNIV_211_NORM);
+  if (hit211 === '__REVIEW__' || hit985 === '__REVIEW__') return { tier: null, hit: '__REVIEW__' };
+  if (hit211) return { tier: '211', hit: hit211 };
+  return { tier: null, hit: null };
+}
+
 function checkEducation(education) {
-  // 返回 { status: 'pass'|'fail'|'unknown', matched: [...], details: [...] }
+  // 返回 { status: 'pass'|'fail'|'unknown', tier:'985'|'211'|null, matched: [...], details: [...] }
   if (!education || !education.length) {
-    return { status: 'unknown', matched: [], details: ['简历未提取到教育经历，请人工核实学历。'] };
+    return { status: 'unknown', tier: null, matched: [], details: ['简历未提取到教育经历，请人工核实学历。'] };
   }
   const relevant = education.filter(e => !e.level || /本科|硕士|博士|研究生/.test(e.level));
   const details = [];
   const matched = [];
+  let bestTier = null;
   let needReview = false;
   for (const e of (relevant.length ? relevant : education)) {
-    const hit = matchUniv(e.school);
-    if (hit === '__REVIEW__') {
+    const hit = matchUnivTier(e.school);
+    if (hit.hit === '__REVIEW__') {
       needReview = true;
       details.push((e.level || '学历') + '　' + (e.school || '') + '　⚠ 疑似211分校，请人工确认');
-    } else if (hit) {
-      matched.push((e.level || '') + '：' + e.school + ' → 命中 ' + hit);
-      details.push((e.level || '学历') + '　' + e.school + '　✓ 211/985');
+    } else if (hit.hit) {
+      if (hit.tier === '985' || !bestTier) bestTier = hit.tier;
+      matched.push((e.level || '') + '：' + e.school + ' → 命中 ' + hit.hit + '（' + hit.tier + '）');
+      details.push((e.level || '学历') + '　' + e.school + '　✓ ' + hit.tier);
     } else {
       details.push((e.level || '学历') + '　' + (e.school || '（校名缺失）') + '　非211/985');
     }
   }
   let status = matched.length ? 'pass' : (needReview ? 'unknown' : 'fail');
-  return { status, matched, details };
+  return { status, tier: bestTier, matched, details };
 }
 
 function priorContext() {
@@ -1393,7 +1420,7 @@ async function runMaterialSummary() {
       '\n\n【简历评估结果】\n' + JSON.stringify(current.stages.resume.result) +
       '\n\n【项目评估结果】\n' + JSON.stringify(current.stages.project.result || emptyProjectResult());
     const r = await callLLM(MATERIAL_PROMPT, msg, {});
-    st.result = parseJSONLoose(r.text);
+    st.result = normalizeMaterialResult(parseJSONLoose(r.text));
     st.engine = r.engine;
     st.at = new Date().toISOString();
     await saveCurrent();
@@ -1810,6 +1837,60 @@ function normalizeInterviewResult(result) {
   return result;
 }
 
+function gateByName(result, keyword) {
+  return ((result && result.hardGates) || []).find(g => (g.item || '').includes(keyword));
+}
+
+function normalizeMaterialResult(result) {
+  if (!result || result.__materialEduCalibrated) return result;
+  const edu = current && current.stages && current.stages.resume &&
+    current.stages.resume.result && current.stages.resume.result.eduCheck;
+  const tier = edu && edu.tier;
+  if (tier === '985' || tier === '211') {
+    const bg = dimByName(result, '基础背景');
+    if (bg) {
+      const minScore = tier === '985' ? 5 : 4;
+      const score = bg.score !== null && bg.score !== undefined ? Number(bg.score) : null;
+      if (!score || score < minScore) bg.score = minScore;
+      bg.evidence = bg.evidence || [];
+      pushUnique(bg.evidence, '系统学历校准：候选人命中' + tier + '高校，基础背景按' + tier + '分层处理。');
+    }
+  }
+
+  if (tier === '985') {
+    const logic = dimScore(result, '逻辑能力');
+    const scores = ['自我驱动力', 'AI兴趣与使用深度', '项目实战能力', '职业方向与岗位匹配度']
+      .map(name => dimScore(result, name))
+      .filter(s => s !== null);
+    const hasHardLow = scores.some(s => s <= 2) || (logic !== null && logic <= 3);
+    const careerGate = gateByName(result, '职业方向');
+    const retentionGate = gateByName(result, '留任');
+    const careerHardFail = careerGate && careerGate.status === '不通过';
+    const retentionHardFail = retentionGate && retentionGate.status === '不通过';
+    const currentTier = result.conclusion && result.conclusion.tier;
+
+    ['自我驱动力', 'AI实践'].forEach(keyword => {
+      const g = gateByName(result, keyword);
+      if (g && g.status === '不通过') {
+        const dimName = keyword === 'AI实践' ? 'AI兴趣与使用深度' : '自我驱动力';
+        const s = dimScore(result, dimName);
+        if (s === 3) {
+          g.status = '存疑';
+          g.notes = '系统学历校准：985候选人该项为3分但未见2分以下硬伤，材料阶段先标为存疑，面试重点验证。' + (g.notes ? ' 原判断：' + g.notes : '');
+        }
+      }
+    });
+
+    if (currentTier === '不推荐' && logic >= 4 && !hasHardLow && !careerHardFail && !retentionHardFail) {
+      result.conclusion.tier = '边缘';
+      result.conclusion.summary = '系统学历校准：候选人为985背景且逻辑学习能力达标，虽然自驱力、AI/项目实践或职业方向仍有短板，但材料阶段不直接淘汰；建议列为边缘，面试重点验证真实兴趣、长期投入和AI实践深度。';
+    }
+  }
+
+  Object.defineProperty(result, '__materialEduCalibrated', { value: true, enumerable: false, configurable: true });
+  return result;
+}
+
 function resultShell(r, extra, title) {
   const tier = r.conclusion ? r.conclusion.tier : '';
   const summary = r.conclusion ? r.conclusion.summary : '';
@@ -1831,6 +1912,7 @@ function trialRecommendationBlock(rec) {
 function stageResult(stageKey) {
   const st = current.stages[stageKey];
   if (!st) return null;
+  if (stageKey === 'material') return normalizeMaterialResult(st.result);
   if (stageKey === 'interview') {
     if (st.outline && !st.result) return null;
     return normalizeInterviewResult(st.result);
@@ -1936,8 +2018,7 @@ function renderResumeFilesOverview() {
 }
 
 function renderMaterialSummary() {
-  const st = current.stages.material;
-  const r = st && st.result;
+  const r = stageResult('material');
   if (!r) return '';
   let extra = '';
   extra += gateOverview(r.hardGates);
