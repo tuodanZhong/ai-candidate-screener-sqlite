@@ -75,6 +75,15 @@
 	  .cand-item .name small { font-size: 11.5px; color: var(--text-400); font-weight: 400; }
 	  .cand-item .school { font-size: 11.5px; color: var(--text-400); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: -2px; }
 	  .cand-item .cand-text { min-width: 0; display: flex; flex-direction: column; }
+  .cand-status {
+    flex-shrink: 0; font-size: 11px; line-height: 1; padding: 5px 7px;
+    border-radius: 999px; border: 1px solid var(--border-light);
+    background: var(--bg-000); color: var(--text-300); white-space: nowrap;
+  }
+  .cand-status.todo { background: var(--bg-000); color: var(--text-400); }
+  .cand-status.good { background: #edf7e8; color: #3d7c2f; border-color: #d8e8cf; }
+  .cand-status.mid { background: #fbf4e8; color: #a36b14; border-color: #ead6b5; }
+  .cand-status.bad { background: #fdecec; color: var(--danger); border-color: #f1c9c6; }
   .cand-item .stage-dots { display: flex; gap: 4px; flex-shrink: 0; }
   .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--bg-400); border: 1px solid var(--border-medium); }
   .dot.done { background: var(--success); border-color: var(--success); }
@@ -570,9 +579,81 @@ function newCandidate(name) {
   };
 }
 
+function stageResultForCandidate(candidate, stageKey) {
+  const st = candidate && candidate.stages && candidate.stages[stageKey];
+  if (!st) return null;
+  if (stageKey === 'material') return normalizeMaterialResult(st.result, candidate);
+  if (stageKey === 'interview') return st.outline && !st.result ? null : normalizeInterviewResult(st.result);
+  return st.result;
+}
+
+function tierForCandidate(candidate, stageKey) {
+  const r = stageResultForCandidate(candidate, stageKey);
+  if (!r) return '未开始';
+  if (r.recommendation) return r.recommendation.decision || '已评估';
+  return (r.conclusion && r.conclusion.tier) || '已评估';
+}
+
+function sidebarStatusForCandidate(candidate) {
+  const s = candidate && candidate.stages || {};
+  const materialTier = tierForCandidate(candidate, 'material');
+  const interviewTier = tierForCandidate(candidate, 'interview');
+  const trialTier = tierForCandidate(candidate, 'trial');
+  const finalTier = tierForCandidate(candidate, 'final');
+  if (!s.material || !s.material.result) return { label: '待材料', cls: 'todo' };
+  if (/不推荐/.test(materialTier)) return { label: '不推进', cls: 'bad' };
+  if (!s.interview || !s.interview.result) {
+    if (/边缘/.test(materialTier)) return { label: '边缘面试', cls: 'mid' };
+    return { label: '推进面试', cls: 'good' };
+  }
+  if (/不推荐|不建议给试稿/.test(interviewTier)) return { label: '不试稿', cls: 'bad' };
+  if (/谨慎给试稿/.test(interviewTier) && (!s.trial || !s.trial.result)) return { label: '谨慎试稿', cls: 'mid' };
+  if (!s.trial || !s.trial.result) return { label: '待试稿', cls: 'good' };
+  if (/不通过|不录用/.test(trialTier)) return { label: '试稿未过', cls: 'bad' };
+  if (/谨慎|边缘/.test(trialTier)) return { label: '试稿存疑', cls: 'mid' };
+  if (!s.final || !s.final.result) return { label: '试稿通过', cls: 'good' };
+  if (/不录用/.test(finalTier)) return { label: '不录用', cls: 'bad' };
+  if (/谨慎/.test(finalTier)) return { label: '谨慎录用', cls: 'mid' };
+  if (/录用/.test(finalTier)) return { label: '建议录用', cls: 'good' };
+  return { label: '已评估', cls: 'mid' };
+}
+
+function syncIndexItemFromCandidate(candidate) {
+  if (!candidate || candidate.persisted === false) return false;
+  const item = index.find(x => x.id === candidate.id);
+  if (!item) return false;
+  const status = sidebarStatusForCandidate(candidate);
+  let changed = false;
+  ['name','school','gender','educationStage','graduationYear'].forEach(k => {
+    const value = candidate[k] || '';
+    if (value && item[k] !== value) { item[k] = value; changed = true; }
+  });
+  if (item.statusLabel !== status.label) { item.statusLabel = status.label; changed = true; }
+  if (item.statusClass !== status.cls) { item.statusClass = status.cls; changed = true; }
+  return changed;
+}
+
+async function hydrateIndexStatuses() {
+  let changed = false;
+  for (const item of index) {
+    try {
+      const raw = await stGet('screener:cand:' + item.id);
+      if (!raw) continue;
+      const candidate = JSON.parse(raw);
+      if (syncIndexItemFromCandidate(candidate)) changed = true;
+    } catch(e) {}
+  }
+  if (changed) {
+    await saveIndex();
+    renderSidebar();
+  }
+}
+
 async function saveIndex() { await stSet(IDX_KEY, JSON.stringify(index)); }
 async function saveCurrent() {
   if (!current || current.persisted === false) return;
+  const changed = syncIndexItemFromCandidate(current);
+  if (changed) await saveIndex();
   await stSet('screener:cand:' + current.id, JSON.stringify(current));
 }
 async function ensureCurrentPersisted() {
@@ -617,6 +698,7 @@ async function init() {
   } catch(e) { index = []; }
   renderSidebar();
   renderMain();
+  hydrateIndexStatuses();
 }
 
 async function addCandidate() {
@@ -635,10 +717,7 @@ async function openCandidate(id) {
   if (!current.stages.material) current.stages.material = { result: null, at: null };
   const item = index.find(x => x.id === current.id);
   if (item) {
-    let changed = false;
-    ['school','gender','educationStage','graduationYear'].forEach(k => {
-      if (current[k] && item[k] !== current[k]) { item[k] = current[k]; changed = true; }
-    });
+    const changed = syncIndexItemFromCandidate(current);
     if (changed) await saveIndex();
   }
   await loadCandidateFiles(id);
@@ -1599,7 +1678,7 @@ function renderSidebar() {
   };
   const draftHtml = current && current.persisted === false
     ? '<div class="cand-item active">' + candTextHtml(current) +
-      '<span style="font-size:11px;color:var(--warning);flex-shrink:0">未保存</span></div>'
+      '<span style="display:flex;align-items:center;gap:6px"><span class="cand-status todo">待材料</span><span style="font-size:11px;color:var(--warning);flex-shrink:0">未保存</span></span></div>'
     : '';
   if (!index.length) {
     list.innerHTML = draftHtml || '<div style="padding:20px 10px;font-size:13px;color:var(--text-400)">还没有候选人。点击上方“新增候选人”，进入页面后录入简历和项目材料。</div>';
@@ -1607,15 +1686,11 @@ function renderSidebar() {
   }
   list.innerHTML = draftHtml + index.map(item => {
     const isActive = current && current.id === item.id;
-    let dots = '<span class="dot"></span>'.repeat(4);
-    if (isActive) {
-      dots = '<span class="dot ' + materialDotClass(current.stages) + '"></span>' +
-        ['interview','trial'].map(k => '<span class="dot ' + stageDotClass(current.stages[k]) + '"></span>').join('');
-    }
+    const status = isActive && current ? sidebarStatusForCandidate(current) : { label: item.statusLabel || '待材料', cls: item.statusClass || 'todo' };
     return '<div class="cand-item' + (isActive ? ' active' : '') + '" onclick="openCandidate(\'' + item.id + '\')">' +
       candTextHtml(item) +
       '<span style="display:flex;align-items:center;gap:6px">' +
-      (isActive ? '<span class="stage-dots">' + dots + '</span>' : '') +
+      '<span class="cand-status ' + esc(status.cls) + '">' + esc(status.label) + '</span>' +
       '<button class="del" title="删除" onclick="deleteCandidate(\'' + item.id + '\', event)">×</button></span></div>';
   }).join('');
 }
@@ -1841,10 +1916,11 @@ function gateByName(result, keyword) {
   return ((result && result.hardGates) || []).find(g => (g.item || '').includes(keyword));
 }
 
-function normalizeMaterialResult(result) {
+function normalizeMaterialResult(result, candidate) {
   if (!result || result.__materialEduCalibrated) return result;
-  const edu = current && current.stages && current.stages.resume &&
-    current.stages.resume.result && current.stages.resume.result.eduCheck;
+  const source = candidate || current;
+  const edu = source && source.stages && source.stages.resume &&
+    source.stages.resume.result && source.stages.resume.result.eduCheck;
   const tier = edu && edu.tier;
   if (tier === '985' || tier === '211') {
     const bg = dimByName(result, '基础背景');
