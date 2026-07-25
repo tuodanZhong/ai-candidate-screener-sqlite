@@ -243,6 +243,15 @@
   .profile-item { border: 1px solid var(--border-light); border-radius: var(--radius-sm); padding: 12px 14px; background: var(--bg-000); }
   .profile-item .label { font-size: 11.5px; color: var(--text-400); margin-bottom: 4px; }
   .profile-item .value { font-size: 15px; color: var(--text-100); font-weight: 600; }
+  .profile-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; padding: 0 14px 14px; }
+  .profile-field label { display: block; font-size: 11.5px; color: var(--text-400); margin-bottom: 5px; }
+  .profile-field input, .profile-field select {
+    width: 100%; height: 36px; border: 1px solid var(--border-medium);
+    border-radius: var(--radius-sm); padding: 0 10px; font-size: 13.5px;
+    color: var(--text-100); background: var(--bg-000); font-family: var(--font-sans);
+  }
+  .profile-field input:focus, .profile-field select:focus { outline: none; border-color: var(--border-strong); }
+  .profile-actions { grid-column: 1 / -1; display: flex; justify-content: flex-end; gap: 8px; }
   .stage-board { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; margin-top: 12px; }
   .stage-card { border: 1px solid var(--border-light); border-radius: var(--radius-sm); padding: 13px 14px; background: var(--bg-000); }
   .stage-card .stage-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px; }
@@ -515,13 +524,14 @@ function detectGraduationYear(result) {
 
 async function applyDetectedProfile(result) {
   if (!current || !result) return false;
+  const manual = current.manualProfileFields || {};
   const detected = cleanDetectedName(result.candidateName || result.name || (result.basicInfo && result.basicInfo.name));
   const school = detectSchool(result);
   const gender = normalizeGender(result.gender || result.sex || (result.basicInfo && result.basicInfo.gender));
   const educationStage = detectEducationStage(result);
   const graduationYear = detectGraduationYear(result);
   let changed = false;
-  if (detected) {
+  if (detected && !manual.name) {
     const canRename = isPendingName(current.name) || current.nameStatus === 'resume-detected';
     if (canRename && current.name !== detected) {
       current.name = detected;
@@ -530,20 +540,20 @@ async function applyDetectedProfile(result) {
       changed = true;
     }
   }
-  if (school && current.school !== school) {
+  if (school && !manual.school && current.school !== school) {
     current.school = school;
     current.schoolUpdatedAt = new Date().toISOString();
     changed = true;
   }
-  if (gender && current.gender !== gender) {
+  if (gender && !manual.gender && current.gender !== gender) {
     current.gender = gender;
     changed = true;
   }
-  if (educationStage && current.educationStage !== educationStage) {
+  if (educationStage && !manual.educationStage && current.educationStage !== educationStage) {
     current.educationStage = educationStage;
     changed = true;
   }
-  if (graduationYear && current.graduationYear !== graduationYear) {
+  if (graduationYear && !manual.graduationYear && current.graduationYear !== graduationYear) {
     current.graduationYear = graduationYear;
     changed = true;
   }
@@ -558,6 +568,69 @@ async function applyDetectedProfile(result) {
   }
   await saveIndex();
   return true;
+}
+
+function updateResumeResultFromProfile() {
+  const r = current && current.stages && current.stages.resume && current.stages.resume.result;
+  if (!r) return;
+  if (current.name && !isPendingName(current.name)) r.candidateName = current.name;
+  r.gender = current.gender || null;
+  r.educationStage = current.educationStage || null;
+  r.graduationYear = current.graduationYear || null;
+  if (current.school) {
+    const education = Array.isArray(r.education) ? r.education : [];
+    let row = education.find(e => e && /本科|硕士|博士|研究生/.test(e.level || '')) || education[0];
+    if (!row) {
+      row = {};
+      education.push(row);
+    }
+    row.school = current.school;
+    if (current.educationStage) row.level = current.educationStage === '研究生' ? '硕士' : current.educationStage;
+    r.education = education;
+  }
+  r.eduCheck = checkEducation(r.education || (current.school ? [{ school: current.school, level: current.educationStage || '' }] : []));
+}
+
+async function saveProfileEdits() {
+  if (!current) return;
+  const g = id => (document.getElementById(id) || {}).value || '';
+  const next = {
+    name: cleanDetectedName(g('profileName')) || g('profileName').trim(),
+    gender: normalizeGender(g('profileGender')),
+    school: cleanDetectedSchool(g('profileSchool')),
+    educationStage: /研究生|本科/.test(g('profileEducationStage')) ? g('profileEducationStage') : '',
+    graduationYear: (g('profileGraduationYear').match(/20\d{2}/) || [''])[0]
+  };
+  const keys = ['name','gender','school','educationStage','graduationYear'];
+  const materialSensitive = ['school','educationStage','graduationYear'];
+  let changed = false;
+  let materialChanged = false;
+  current.manualProfileFields = current.manualProfileFields || {};
+  keys.forEach(k => {
+    const oldVal = current[k] || '';
+    const newVal = next[k] || '';
+    if (oldVal !== newVal) {
+      current[k] = newVal;
+      current.manualProfileFields[k] = true;
+      changed = true;
+      if (materialSensitive.includes(k)) materialChanged = true;
+    }
+  });
+  if (!changed) return;
+  if (next.name) {
+    current.nameStatus = 'manual-edited';
+    current.nameUpdatedAt = new Date().toISOString();
+  }
+  if (next.school) current.schoolUpdatedAt = new Date().toISOString();
+  updateResumeResultFromProfile();
+  if (materialChanged && current.stages.material && current.stages.material.result) {
+    current.stages.material.profileDirty = true;
+    current.stages.material.profileDirtyAt = new Date().toISOString();
+    current.stages.material.profileDirtyReason = 'HR人工修改了学校/学历阶段/毕业年份，建议基于新信息重新评估材料。';
+  }
+  await saveCurrent();
+  renderSidebar();
+  renderMain();
 }
 
 function newCandidate(name) {
@@ -601,6 +674,7 @@ function sidebarStatusForCandidate(candidate) {
   const trialTier = tierForCandidate(candidate, 'trial');
   const finalTier = tierForCandidate(candidate, 'final');
   if (!s.material || !s.material.result) return { label: '待材料', cls: 'todo' };
+  if (s.material.profileDirty) return { label: '需重评', cls: 'mid' };
   if (/不推荐/.test(materialTier)) return { label: '不推进', cls: 'bad' };
   if (!s.interview || !s.interview.result) {
     if (/边缘/.test(materialTier)) return { label: '边缘面试', cls: 'mid' };
@@ -1491,22 +1565,51 @@ async function runProject(opts) {
   }
 }
 
-async function runMaterialSummary() {
+async function runMaterialSummary(opts) {
+  opts = opts || {};
+  const errorBox = opts.errorBox || 'resumeErr';
   const st = current.stages.material || (current.stages.material = { result: null, at: null });
   if (!current.stages.resume.result) return false;
   try {
+    const profile = {
+      name: current.name || null,
+      gender: current.gender || null,
+      school: current.school || null,
+      educationStage: current.educationStage || null,
+      graduationYear: current.graduationYear || null,
+      note: '如与简历评估结果冲突，请优先采用HR人工修正的基本信息。'
+    };
     const msg = '候选人姓名：' + current.name +
+      '\n\n【HR人工修正/确认的基本信息（优先级最高）】\n' + JSON.stringify(profile) +
       '\n\n【简历评估结果】\n' + JSON.stringify(current.stages.resume.result) +
       '\n\n【项目评估结果】\n' + JSON.stringify(current.stages.project.result || emptyProjectResult());
     const r = await callLLM(MATERIAL_PROMPT, msg, {});
     st.result = normalizeMaterialResult(parseJSONLoose(r.text));
     st.engine = r.engine;
     st.at = new Date().toISOString();
+    st.profileDirty = false;
+    st.profileDirtyReason = '';
     await saveCurrent();
     return true;
   } catch(e) {
-    showError('resumeErr', e.message);
+    showError(errorBox, e.message);
     return false;
+  }
+}
+
+async function rerunMaterialFromProfile() {
+  if (!current || !current.stages.resume.result) {
+    showError('profileErr', '请先完成材料评估或简历解析后再重新评估。');
+    return;
+  }
+  clearError('profileErr');
+  setLoading('profileReevalBtn', true);
+  try {
+    updateResumeResultFromProfile();
+    const ok = await runMaterialSummary({ errorBox: 'profileErr' });
+    if (ok) { renderSidebar(); renderMain(); }
+  } finally {
+    setLoading('profileReevalBtn', false);
   }
 }
 
@@ -2016,6 +2119,7 @@ function currentStageText() {
   const interviewTier = stageTierText('interview');
   const trialTier = stageTierText('trial');
   if (!s.material || !s.material.result) return { label: '待材料评估', note: '先上传简历和项目材料，生成第一轮综合判断。' };
+  if (s.material.profileDirty) return { label: '材料需重评', note: s.material.profileDirtyReason || '基本信息已人工修正，建议重新评估材料综合判断。' };
   if (/不推荐/.test(materialTier)) return { label: '材料初筛未通过', note: '除非HR有额外强证据，否则不建议继续推进。' };
   if (!s.interview.result) return { label: '待面试', note: '材料已评估，可进入面试验证自驱力、逻辑能力和项目真实性。' };
   if (/不推荐|不建议给试稿/.test(interviewTier)) return { label: '不建议给试稿', note: '面试后判断不值得支付试稿成本。' };
@@ -2044,6 +2148,27 @@ function renderStageBoard() {
     }).join('') + '</div></div>';
 }
 
+function selectOptions(value, items) {
+  return items.map(([v, label]) => '<option value="' + esc(v) + '"' + (value === v ? ' selected' : '') + '>' + esc(label) + '</option>').join('');
+}
+
+function renderProfileEditForm() {
+  const dirty = current.stages.material && current.stages.material.profileDirty;
+  return '<details id="profileEdit" class="quiet-edit" style="margin-top:-8px"><summary>人工修正基本信息</summary>' +
+    '<div class="profile-form">' +
+    '<div class="profile-field"><label>姓名</label><input id="profileName" value="' + esc(current.name || '') + '" placeholder="候选人姓名"></div>' +
+    '<div class="profile-field"><label>性别</label><select id="profileGender">' + selectOptions(current.gender || '', [['','未识别/不填写'],['男','男'],['女','女']]) + '</select></div>' +
+    '<div class="profile-field"><label>学校</label><input id="profileSchool" value="' + esc(current.school || '') + '" placeholder="学校名称"></div>' +
+    '<div class="profile-field"><label>学历阶段</label><select id="profileEducationStage">' + selectOptions(current.educationStage || '', [['','未识别/不填写'],['本科','本科'],['研究生','研究生']]) + '</select></div>' +
+    '<div class="profile-field"><label>毕业年份</label><input id="profileGraduationYear" value="' + esc(current.graduationYear || '') + '" placeholder="如 2027"></div>' +
+    '<div class="profile-actions">' +
+    (dirty ? '<button id="profileReevalBtn" class="btn btn-secondary" onclick="rerunMaterialFromProfile()"><span class="spinner" style="display:none"></span>重新评估材料</button>' : '') +
+    '<button class="btn btn-primary" onclick="saveProfileEdits()">保存基本信息</button></div>' +
+    (dirty ? '<div class="hint" style="grid-column:1/-1;color:var(--warning)">基本信息已人工修改，材料综合评估可能仍基于旧信息，建议重新评估材料。</div>' : '') +
+    '<div class="error-box" id="profileErr" style="display:none;grid-column:1/-1"></div>' +
+    '</div></details>';
+}
+
 function renderOverviewTab() {
   const step = currentStageText();
   const profile = [
@@ -2057,9 +2182,9 @@ function renderOverviewTab() {
   let html = '<div class="next-step"><div><div class="k">当前阶段</div><div class="v">' + esc(step.label) + '</div>' +
     '<div class="stage-summary" style="margin-top:4px">' + esc(step.note) + '</div></div>' +
     '<button class="btn btn-secondary" onclick="switchTab(\'resume\')">补充材料</button></div>';
-  html += '<div class="card"><div class="result-header"><h4>基本信息</h4></div><div class="profile-grid">' +
+  html += '<div class="card"><div class="result-header"><h4>基本信息</h4><button class="btn btn-secondary" onclick="document.getElementById(\'profileEdit\').open=true">编辑</button></div><div class="profile-grid">' +
     profile.map(([k, v]) => '<div class="profile-item"><div class="label">' + esc(k) + '</div><div class="value">' + esc(v) + '</div></div>').join('') +
-    '</div></div>';
+    '</div>' + renderProfileEditForm() + '</div>';
   html += renderResumeFilesOverview();
   html += renderStageBoard();
   html += renderMaterialSummary();
