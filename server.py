@@ -378,7 +378,7 @@ def call_deepseek(payload: dict) -> tuple[int, bytes, str]:
         "stream",
     }
     forwarded = {k: v for k, v in payload.items() if k in allowed}
-    forwarded.setdefault("model", "deepseek-chat")
+    forwarded.setdefault("model", os.environ.get("DEEPSEEK_MODEL", "deepseek-v4-pro").strip() or "deepseek-v4-pro")
     data = json.dumps(forwarded, ensure_ascii=False).encode("utf-8")
     req = urllib.request.Request(
         "https://api.deepseek.com/chat/completions",

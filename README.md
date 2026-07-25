@@ -53,6 +53,7 @@ Optional secrets:
 - `DEPLOY_PATH`: defaults to `/home/ubuntu/ai-candidate-screener-sqlite`
 - `SERVICE_NAME`: defaults to `ai-candidate-screener`
 - `APP_PORT`: defaults to `8765`
+- `DEEPSEEK_MODEL`: defaults to `deepseek-v4-pro`; use `deepseek-v4-flash` if the provider account only enables the flash model
 
 The remote user needs passwordless sudo permission for restarting only this
 service:
