@@ -1125,11 +1125,11 @@ const CONTEXT_INTRO = `你是一家AI新媒体公司的资深招聘评估专家�
 
 const RESUME_PROMPT = CONTEXT_INTRO + `
 
-现在进行【阶段一：简历初筛】。本岗位只要优秀苗子，不是普通合格即可。请先找缺点、风险和证据不足，再给优点；禁止因为一两个积极表述或普通经历就给高分。请从以下维度评估（1-5分，5为最佳）：
+现在进行【阶段一：简历初筛】。本岗位只要优秀苗子，不是普通合格即可。请先找缺点、风险和证据不足，再给优点；禁止因为一两个积极表述或普通经历就给高分。请从以下维度评估（1-5分，5为最佳；标注为加分项的维度不作为是否推进面试的硬门槛）：
 1. 自我驱动力（权重最高）：简历中是否有"自己想做而非被要求做"的痕迹——自发项目、长期坚持的事（博客/开源/账号/社团深度投入）、超出学业要求的经历。
-2. 逻辑能力：简历本身的结构是否清晰；经历描述是否呈现"做了什么→怎么做→结果如何"，是否有量化结果；还是流水账堆砌。
-3. AI兴趣与使用深度：是否有具体的AI使用/折腾痕迹（自建工作流、用AI做过完整作品、相关项目）。注意"了解ChatGPT"这类泛泛表述是零信息量。
-4. 表达能力（加分项）：文字是否流畅，有无写作/内容类经历（公众号、知乎、博客、校媒等）。
+2. 逻辑能力（加分项/面试验证项）：简历只能粗略看材料组织和经历表述是否清楚，不能据此判断真实逻辑能力高低，更不能作为淘汰硬门槛。真正逻辑性主要看面试追问和现场表达。
+3. AI兴趣与使用深度：是否有具体的AI使用/折腾痕迹（自建工作流、Agent系统、LLM应用、提示词/自动化流程、用AI做过完整作品、相关项目）。注意"了解ChatGPT"这类泛泛表述是零信息量。Agent系统开发、AI工作流搭建、LLM应用开发属于本岗位想要的AI实践范畴，不应因其偏技术开发而扣为岗位偏差。
+4. 表达能力（纯加分项）：光从简历很难判断真实表达能力，不作为是否推进面试的打分标准。只根据是否做过媒体账号、公众号、博客、视频、校媒、公开教程/案例等内容产出给加分或面试追问；没有内容账号不能直接扣成不推荐。
 5. 职业方向与岗位匹配度：从求职意向、项目类型、自我介绍、实习经历和职业目标判断候选人是否真想做"AI产品体验 + 内容/案例产出"。如果材料中明确偏产品经理、产品规划、需求分析、互联网产品岗，且缺少内容表达/AI体验/作品产出兴趣，应扣分并标记长期稳定性风险；如果只是做过产品相关项目但同时有强AI体验和表达产出证据，不要机械扣分。
 6. 留任可行性（硬性过滤）：毕业时间、所在地、是否透露考研/考公/出国/读博倾向，以及职业方向是否与本岗位长期路径一致。这是硬过滤：明显无法长期留任或职业方向明显不匹配则整体不推荐。
 
@@ -1141,7 +1141,7 @@ const RESUME_PROMPT = CONTEXT_INTRO + `
 - 1分：明显不匹配、硬伤或反向信号。
 - 如果某维度既有优点也有明显缺点，要优先体现缺点，分数不能只按优点打。
 - 如果简历缺少可验证证据，默认给2-3分，不要脑补候选人可能很优秀。
-- 推荐面试不能只看亮点，必须同时满足学历/基础背景、自驱力、逻辑能力、AI兴趣或项目实践、职业方向/留任可行性均无明显短板。
+- 推荐面试不能只看亮点，必须同时满足学历/基础背景、自驱力、AI兴趣或项目实践、职业方向/留任可行性均无明显短板。逻辑能力和表达能力在简历阶段主要作为加分项与面试验证项，不能因为简历上无法判断或没有媒体账号就直接不推荐。
 
 另外必须准确提取候选人姓名和教育经历：
 - candidateName：候选人姓名。只能从简历正文、PDF文字层提取文本或候选人明确提供的文字中提取；不要从文件名、邮箱、微信号或系统临时显示名猜测。如果无法确定，给null。
@@ -1159,7 +1159,7 @@ const RESUME_PROMPT = CONTEXT_INTRO + `
 
 ` + JSON_RULE + `
 JSON结构：
-{"candidateName":"…"或null,"gender":"男|女"或null,"educationStage":"本科|研究生"或null,"graduationYear":"2027"或null,"education":[{"school":"…","level":"本科|硕士|博士|其他","major":"…","period":"…"}],"dimensions":[{"name":"自我驱动力","score":1-5或null,"evidence":["…"],"concerns":["…"]},{"name":"逻辑能力",…},{"name":"AI兴趣与使用深度",…},{"name":"表达能力",…},{"name":"职业方向与岗位匹配度",…}],"careerDirection":{"status":"匹配"|"存疑"|"不匹配"|"无法判断","evidence":["…"],"risk":"…"},"weaknessSummary":["…"],"hardFilter":{"pass":true|false|"unknown","notes":"…"},"interviewQuestions":["…"],"redFlags":["…"],"conclusion":{"tier":"推荐面试"|"边缘"|"不推荐","summary":"两三句话结论，必须同时说明亮点和主要短板"}}`;
+{"candidateName":"…"或null,"gender":"男|女"或null,"educationStage":"本科|研究生"或null,"graduationYear":"2027"或null,"education":[{"school":"…","level":"本科|硕士|博士|其他","major":"…","period":"…"}],"dimensions":[{"name":"自我驱动力","score":1-5或null,"evidence":["…"],"concerns":["…"]},{"name":"逻辑能力","score":1-5或null,"evidence":["…"],"concerns":["简历阶段仅供参考，需面试验证"]},{"name":"AI兴趣与使用深度",…},{"name":"表达能力","score":null,"evidence":["媒体账号/公开内容产出等加分证据"],"concerns":["简历阶段不作硬性扣分，需面试/试稿验证"]},{"name":"职业方向与岗位匹配度",…}],"careerDirection":{"status":"匹配"|"存疑"|"不匹配"|"无法判断","evidence":["…"],"risk":"…"},"weaknessSummary":["…"],"hardFilter":{"pass":true|false|"unknown","notes":"…"},"interviewQuestions":["…"],"redFlags":["…"],"conclusion":{"tier":"推荐面试"|"边缘"|"不推荐","summary":"两三句话结论，必须同时说明亮点和主要短板"}}`;
 
 const PROJECT_PROMPT = CONTEXT_INTRO + `
 
@@ -1183,39 +1183,41 @@ const MATERIAL_PROMPT = CONTEXT_INTRO + `
 现在生成【材料综合评估】。输入是候选人的简历评估结果和项目评估结果。请站在HR第一轮材料筛选视角，给出一个整体判断，再保留各部分细节供后续展开。
 
 要求：
-1. 结论必须综合简历和项目两类证据：简历负责判断基础背景、自驱力、逻辑、AI兴趣、职业方向匹配、留任可行性；项目负责判断作品完整度、审美、功能复杂度、真实性与原创性。
+1. 结论必须综合简历和项目两类证据：简历负责判断基础背景、自驱力、AI兴趣、职业方向匹配、留任可行性；项目负责判断作品完整度、审美、功能复杂度、真实性与原创性。简历阶段的逻辑能力和表达能力只作为加分/面试验证项，不作为是否推进面试的硬性淘汰标准。
 2. 如果项目材料缺失或只提供了一个/几个代表项目，这是正常投递情况，不要视为造假或诚信风险；只写为"材料覆盖有限，面试补充核验"。
 3. 如果简历学历门槛一票否决，整体结论应体现该硬性限制。
 4. dimensions必须且只能输出以下六项，名称必须完全一致：基础背景、自我驱动力、逻辑能力、AI兴趣与使用深度、表达能力、项目实战能力。
-5. 本岗位筛选非常严格，目标是找"非常好的苗子"，不是找普通合格候选人。211/985背景、自我驱动力、逻辑性/学习能力是硬性门槛；AI实践和基础资料也很重要。打分必须拉开差距，禁止因为简历措辞积极就给高分。
+5. 本岗位筛选非常严格，目标是找"非常好的苗子"，不是找普通合格候选人。211/985背景、自我驱动力、AI实践和基础资料很重要。简历上的逻辑表达只能作为加分或面试验证线索，不能作为材料阶段硬性门槛。打分必须拉开差距，禁止因为简历措辞积极就给高分。
 6. 学历背景分层必须体现差异：
    - 985高校（如西安交通大学、清华、北大、复旦、上交、浙大等）基础背景通常给5分；如果专业/年级/留任信息有小疑点，可给4分，但不能按普通211处理。
    - 普通211高校基础背景通常给4分；只有学校+专业+年级都非常匹配且材料完整时才可接近5分。
    - 双非或学历无法核实时，基础背景不得超过3分，且211/985学历门槛应为"存疑"或"不通过"。
-   - 985候选人代表学习能力和基础素质有更强先验，材料阶段可以适度放宽非核心项：如果逻辑学习能力达到4分且职业方向没有明确不匹配，自我驱动力、AI实践或项目实战中有一项为3分，不应直接"不推荐"，应至少列为"边缘"并进入面试验证。
-   - 985候选人如果自我驱动力和AI/项目都只有3分，但没有2分以下硬伤、没有明确职业方向冲突、逻辑学习能力达到4分，可以给"边缘"而不是"不推荐"；面试重点验证其真实兴趣、长期投入和AI实践深度。
+   - 985候选人代表学习能力和基础素质有更强先验，材料阶段可以适度放宽非核心项：如果职业方向没有明确不匹配，自我驱动力、AI实践或项目实战中有一项为3分，不应直接"不推荐"，应至少列为"边缘"并进入面试验证。
+   - 985候选人如果自我驱动力和AI/项目都只有3分，但没有2分以下硬伤、没有明确职业方向冲突，可以给"边缘"而不是"不推荐"；面试重点验证其真实兴趣、长期投入和AI实践深度。
    - 211候选人不能套用985容错：普通211若自驱力<=3且AI/项目也<=3，通常不推荐或边缘，除非有非常强的作品/表达/长期投入证据。
-   - 985也不是免死金牌：若职业方向明确不匹配、留任不可行、自驱力<=2、逻辑能力<=3，或材料显示完全没有AI/内容岗位兴趣，仍应不推荐。
+   - 985也不是免死金牌：若职业方向明确不匹配、留任不可行、自驱力<=2，或材料显示完全没有AI实践/AI产品兴趣，仍应不推荐。不要因简历阶段逻辑能力<=3或表达能力无法判断而直接不推荐。
 7. 评分校准：
    - 5分：材料中有非常强、具体、可验证的证据，明显高于同龄候选人。例如自发长期项目/持续产出/复杂作品/清晰复盘/量化成果。普通实习、普通校园活动、普通项目不能给5分。
    - 4分：有明确证据支持较强，但仍有待面试验证的部分。必须有具体证据，不得凭积极措辞给4分。
    - 3分：普通或材料不足，只能说明"可能还可以"，不能视为通过硬门槛。多个普通经历叠加仍然通常是3分，不自动变4分。
    - 2分：证据弱、泛泛表述、项目简单、逻辑表达一般，或亮点单薄且缺少长期自发投入。
    - 1分：明显不匹配或硬伤。
-8. 缺点优先校准：必须主动列出短板。只写优点、把风险弱化、或用"建议面试验证"掩盖明显不足都是错误的。普通211/双非候选人任何核心硬门槛只有3分或证据不足，不能直接推荐面试；985候选人可按上面的学历分层规则给到"边缘"或少量放宽。
+8. 缺点优先校准：必须主动列出短板。只写优点、把风险弱化、或用"建议面试验证"掩盖明显不足都是错误的。普通211/双非候选人任何核心硬门槛（学历、自驱、AI实践、职业方向、留任）只有3分或证据不足，不能直接推荐面试；985候选人可按上面的学历分层规则给到"边缘"或少量放宽。表达能力、简历逻辑能力不是材料阶段核心硬门槛。
 9. 职业方向校准：如果候选人明确表达长期想做产品经理、产品规划、需求分析或互联网产品岗，而不是AI产品体验/内容案例输出，本岗位长期稳定性存疑。材料阶段不能因此武断否定一个能力强的人，但必须降低"推荐面试"确定性，并在hardGates与interviewFocus中要求面试验证。
+   - Agent系统开发、LLM应用开发、AI工作流搭建、Prompt自动化、AI工具链开发属于本岗位想要的AI实践范畴。不能因为这些经历偏技术开发、不是媒体内容输出，就判断"AI实践匹配度不通过"或"与岗位方向偏差大"。
+   - 内容表达/媒体账号是加分项，不是AI实践匹配度的必要条件。候选人没有公众号/视频账号时，应放入面试或试稿验证，不应直接作为材料阶段淘汰理由。
 10. 结论校准：
-   - "推荐面试"普通规则：学历门槛通过；自我驱动力>=4；逻辑能力>=4；基础背景无明显留任硬伤；职业方向匹配或至少没有明显冲突；AI兴趣或项目实战至少一项>=4；且没有两个以上核心维度为3分。不能因为某一项亮眼就整体推荐。
-   - "推荐面试"985例外规则：985背景 + 逻辑学习能力>=4 + 职业方向无明确不匹配 + 无2分以下硬伤时，即使自驱力或AI/项目有一项为3分，也可以推荐面试，但必须在summary中写明"985强背景，建议面试重点验证短板"。
-   - "边缘"用于证据不充分、某个核心项只有3分、985候选人有两项3分但仍有逻辑/学历优势、职业方向偏产品但仍可通过面试验证、或需要面试确认但尚未一票否决的候选人。边缘不是默认推荐。
-   - "不推荐"用于211/985门槛未过、自驱力<=3、逻辑能力<=3、AI兴趣/项目实战都普通或证据弱、留任明显不可行、职业方向明确不匹配且缺少AI/内容产出兴趣、或材料明显普通且缺少亮点的候选人。
-   - 上一条"不推荐"对985候选人需谨慎使用：如果只是自驱力=3、AI/项目=3、职业方向存疑但非明确不匹配，且逻辑学习能力>=4，应优先给"边缘"而不是"不推荐"。
-11. hardGates必须逐项给出"通过/存疑/不通过"。如果没有强证据支持，就标为"存疑"或"不通过"，不要默认通过。985候选人的"自我驱动力硬门槛"或"AI实践匹配度"如果是3分但未见反向硬伤，应标为"存疑"而不是"不通过"。
+   - "推荐面试"普通规则：学历门槛通过；自我驱动力>=4；基础背景无明显留任硬伤；职业方向匹配或至少没有明显冲突；AI兴趣或项目实战至少一项>=4；且没有两个以上核心硬门槛为3分。不能因为某一项亮眼就整体推荐。
+   - "推荐面试"985例外规则：985背景 + 职业方向无明确不匹配 + 无2分以下硬伤时，即使自驱力或AI/项目有一项为3分，也可以推荐面试，但必须在summary中写明"985强背景，建议面试重点验证短板"。
+   - "边缘"用于证据不充分、某个核心项只有3分、985候选人有两项3分但仍有学历/AI项目优势、职业方向偏产品但仍可通过面试验证、或需要面试确认但尚未一票否决的候选人。边缘不是默认推荐。
+   - "不推荐"用于211/985门槛未过、自驱力<=3且缺乏其他强AI/项目证据、AI兴趣/项目实战都普通或证据弱、留任明显不可行、职业方向明确不匹配且缺少AI实践兴趣、或材料明显普通且缺少亮点的候选人。不得因为表达能力无材料证据、没有媒体账号、或简历逻辑能力无法判断而直接不推荐。
+   - 上一条"不推荐"对985候选人需谨慎使用：如果只是自驱力=3、AI/项目=3、职业方向存疑但非明确不匹配，应优先给"边缘"而不是"不推荐"。
+11. hardGates必须逐项给出"通过/存疑/不通过"。如果没有强证据支持，就标为"存疑"或"不通过"，不要默认通过。985候选人的"自我驱动力硬门槛"或"AI实践匹配度"如果是3分但未见反向硬伤，应标为"存疑"而不是"不通过"。不要设置"逻辑学习能力硬门槛"或"表达能力硬门槛"；如需体现，只能作为"逻辑表达加分项/面试验证项"。
 12. interviewFocus列出后续面试最该验证的3-5个问题，不要泛泛而谈；如果职业方向存疑，必须包含一个追问其是否愿意长期做AI产品体验、内容案例产出和日常高频工具使用的问题。
 
 ` + JSON_RULE + `
 JSON结构：
-{"dimensions":[{"name":"基础背景","score":1-5或null,"evidence":["…"],"concerns":["…"]},{"name":"自我驱动力",…},{"name":"逻辑能力",…},{"name":"AI兴趣与使用深度",…},{"name":"表达能力",…},{"name":"项目实战能力",…}],"hardGates":[{"item":"211/985学历门槛","status":"通过"|"存疑"|"不通过","notes":"…"},{"item":"自我驱动力硬门槛","status":"通过"|"存疑"|"不通过","notes":"…"},{"item":"逻辑学习能力硬门槛","status":"通过"|"存疑"|"不通过","notes":"…"},{"item":"AI实践匹配度","status":"通过"|"存疑"|"不通过","notes":"…"},{"item":"职业方向匹配度","status":"通过"|"存疑"|"不通过","notes":"…"},{"item":"留任可行性","status":"通过"|"存疑"|"不通过","notes":"…"}],"materialCoverage":{"level":"充分"|"部分"|"不足","notes":"…"},"interviewFocus":["…"],"conclusion":{"tier":"推荐面试"|"边缘"|"不推荐","summary":"两三句话整体结论，必须说明推荐或不推荐的硬门槛依据"}}`;
+{"dimensions":[{"name":"基础背景","score":1-5或null,"evidence":["…"],"concerns":["…"]},{"name":"自我驱动力",…},{"name":"逻辑能力","score":1-5或null,"evidence":["简历材料可见的结构化表达线索"],"concerns":["材料阶段仅作加分或面试验证，不作硬门槛"]},{"name":"AI兴趣与使用深度",…},{"name":"表达能力","score":null,"evidence":["媒体账号/公开内容/写作经历等加分证据"],"concerns":["材料阶段不作硬门槛，需面试和试稿验证"]},{"name":"项目实战能力",…}],"hardGates":[{"item":"211/985学历门槛","status":"通过"|"存疑"|"不通过","notes":"…"},{"item":"自我驱动力硬门槛","status":"通过"|"存疑"|"不通过","notes":"…"},{"item":"AI实践匹配度","status":"通过"|"存疑"|"不通过","notes":"…"},{"item":"职业方向匹配度","status":"通过"|"存疑"|"不通过","notes":"…"},{"item":"留任可行性","status":"通过"|"存疑"|"不通过","notes":"…"},{"item":"逻辑表达加分项","status":"通过"|"存疑"|"不通过","notes":"仅记录加分/面试验证，不影响是否推进"}],"materialCoverage":{"level":"充分"|"部分"|"不足","notes":"…"},"interviewFocus":["…"],"conclusion":{"tier":"推荐面试"|"边缘"|"不推荐","summary":"两三句话整体结论，必须说明推荐或不推荐的硬门槛依据"}}`;
 
 const OUTLINE_PROMPT = CONTEXT_INTRO + `
 
@@ -2019,8 +2021,78 @@ function gateByName(result, keyword) {
   return ((result && result.hardGates) || []).find(g => (g.item || '').includes(keyword));
 }
 
+function normalizeResumeResult(result) {
+  if (!result || result.__resumeSignalCalibrated) return result;
+  const logic = dimByName(result, '逻辑能力');
+  if (logic) {
+    logic.concerns = logic.concerns || [];
+    pushUnique(logic.concerns, '系统校准：简历阶段只能粗略观察材料组织，逻辑能力主要放到面试追问中验证，不作为初筛硬门槛。');
+  }
+  const expression = dimByName(result, '表达能力');
+  if (expression) {
+    expression.score = null;
+    expression.concerns = expression.concerns || [];
+    pushUnique(expression.concerns, '系统校准：简历阶段不对表达能力打分；媒体账号、公开写作或视频产出只作为加分线索，缺失不直接扣成不推荐。');
+  }
+  Object.defineProperty(result, '__resumeSignalCalibrated', { value: true, enumerable: false, configurable: true });
+  return result;
+}
+
 function normalizeMaterialResult(result, candidate) {
   if (!result || result.__materialEduCalibrated) return result;
+  const logicDim = dimByName(result, '逻辑能力');
+  if (logicDim) {
+    logicDim.concerns = logicDim.concerns || [];
+    pushUnique(logicDim.concerns, '系统校准：材料阶段逻辑能力只作加分和面试验证，不作为是否推进面试的硬门槛。');
+  }
+  const expressionDim = dimByName(result, '表达能力');
+  if (expressionDim) {
+    expressionDim.score = null;
+    expressionDim.concerns = expressionDim.concerns || [];
+    pushUnique(expressionDim.concerns, '系统校准：材料阶段不对表达能力打分；媒体账号、公开内容或写作经历只作为加分线索。');
+  }
+
+  const logicGate = ((result && result.hardGates) || []).find(g => /逻辑.*硬门槛|逻辑学习能力/.test(g.item || ''));
+  if (logicGate) {
+    logicGate.item = '逻辑表达加分项';
+    logicGate.status = '存疑';
+    logicGate.notes = '系统校准：简历材料中的逻辑/表达只记录加分和面试验证点，不影响是否推进。' + (logicGate.notes ? ' 原判断：' + logicGate.notes : '');
+  }
+  const expressionGate = ((result && result.hardGates) || []).find(g => /表达.*硬门槛/.test(g.item || ''));
+  if (expressionGate) {
+    expressionGate.item = '表达内容加分项';
+    expressionGate.status = '存疑';
+    expressionGate.notes = '系统校准：表达能力不作为材料阶段硬门槛，公开内容产出仅作为加分线索。' + (expressionGate.notes ? ' 原判断：' + expressionGate.notes : '');
+  }
+
+  const aiDim = dimByName(result, 'AI兴趣与使用深度');
+  const projectDim = dimByName(result, '项目实战能力');
+  const aiGate = gateByName(result, 'AI实践');
+  const aiText = [
+    result.conclusion && result.conclusion.summary,
+    dimConcernText(aiDim),
+    dimConcernText(projectDim),
+    ((result && result.hardGates) || []).map(g => [g.item, g.status, g.notes].filter(Boolean).join(' ')).join(' ')
+  ].filter(Boolean).join(' ');
+  const hasAgentSignal = /Agent|智能体|LLM|大模型|工作流|workflow|Prompt|提示词|自动化|AI工具链|RAG|LangGraph/i.test(aiText);
+  if (hasAgentSignal) {
+    const unrelatedHardFail = ((result && result.hardGates) || []).some(g =>
+      g.status === '不通过' && !/AI实践|逻辑|表达/.test(g.item || '')
+    );
+    if (aiDim) {
+      aiDim.evidence = aiDim.evidence || [];
+      pushUnique(aiDim.evidence, '系统校准：Agent系统、LLM应用、AI工作流或自动化工具链开发属于本岗位认可的AI实践范畴。');
+    }
+    if (aiGate && (aiGate.status === '不通过' || /技术开发|不是媒体|内容输出|案例内容|方向偏差|偏差大/.test(aiGate.notes || ''))) {
+      if (aiGate.status === '不通过') aiGate.status = '存疑';
+      aiGate.notes = '系统校准：不能仅因AI实践偏技术开发、不是媒体内容输出，就判定AI实践匹配度不通过；应面试验证其产品体验意识和内容表达意愿。' + (aiGate.notes ? ' 原判断：' + aiGate.notes : '');
+    }
+    if (result.conclusion && /技术开发|Agent|智能体|内容输出|案例内容|方向偏差|匹配度存疑/.test(result.conclusion.summary || '') && !unrelatedHardFail) {
+      result.conclusion.tier = '边缘';
+      result.conclusion.summary = '系统校准：候选人的Agent系统/LLM应用/AI工作流开发属于强相关AI实践，材料阶段不因偏技术开发或缺少媒体内容账号直接淘汰；建议列为边缘，面试重点验证产品体验意识、内容表达意愿、项目真实性和长期岗位匹配。';
+    }
+  }
+
   const source = candidate || current;
   const edu = source && source.stages && source.stages.resume &&
     source.stages.resume.result && source.stages.resume.result.eduCheck;
@@ -2037,11 +2109,10 @@ function normalizeMaterialResult(result, candidate) {
   }
 
   if (tier === '985') {
-    const logic = dimScore(result, '逻辑能力');
     const scores = ['自我驱动力', 'AI兴趣与使用深度', '项目实战能力', '职业方向与岗位匹配度']
       .map(name => dimScore(result, name))
       .filter(s => s !== null);
-    const hasHardLow = scores.some(s => s <= 2) || (logic !== null && logic <= 3);
+    const hasHardLow = scores.some(s => s <= 2);
     const careerGate = gateByName(result, '职业方向');
     const retentionGate = gateByName(result, '留任');
     const careerHardFail = careerGate && careerGate.status === '不通过';
@@ -2060,9 +2131,9 @@ function normalizeMaterialResult(result, candidate) {
       }
     });
 
-    if (currentTier === '不推荐' && logic >= 4 && !hasHardLow && !careerHardFail && !retentionHardFail) {
+    if (currentTier === '不推荐' && !hasHardLow && !careerHardFail && !retentionHardFail) {
       result.conclusion.tier = '边缘';
-      result.conclusion.summary = '系统学历校准：候选人为985背景且逻辑学习能力达标，虽然自驱力、AI/项目实践或职业方向仍有短板，但材料阶段不直接淘汰；建议列为边缘，面试重点验证真实兴趣、长期投入和AI实践深度。';
+      result.conclusion.summary = '系统学历校准：候选人为985背景且无2分以下核心硬伤，虽然自驱力、AI/项目实践或职业方向仍有短板，但材料阶段不因简历逻辑/表达无法判断直接淘汰；建议列为边缘，面试重点验证真实兴趣、长期投入和AI实践深度。';
     }
   }
 
@@ -2091,6 +2162,7 @@ function trialRecommendationBlock(rec) {
 function stageResult(stageKey) {
   const st = current.stages[stageKey];
   if (!st) return null;
+  if (stageKey === 'resume') return normalizeResumeResult(st.result);
   if (stageKey === 'material') return normalizeMaterialResult(st.result);
   if (stageKey === 'interview') {
     if (st.outline && !st.result) return null;
