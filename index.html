@@ -656,7 +656,7 @@ function stageResultForCandidate(candidate, stageKey) {
   const st = candidate && candidate.stages && candidate.stages[stageKey];
   if (!st) return null;
   if (stageKey === 'material') return normalizeMaterialResult(st.result, candidate);
-  if (stageKey === 'interview') return st.outline && !st.result ? null : normalizeInterviewResult(st.result);
+  if (stageKey === 'interview') return st.outline && !st.result ? null : normalizeInterviewResult(st.result, candidate);
   return st.result;
 }
 
@@ -1263,12 +1263,14 @@ const INTERVIEW_PROMPT = CONTEXT_INTRO + `
 - "谨慎给试稿"：只能用于"几乎达到付费门槛但仍有一个轻微疑点"。如果AI深度、结构化抽象、目标感/拼劲任一项只有3分，默认不是谨慎，而是不建议；除非材料中有非常强的反证，才可谨慎给。
 - "不建议给试稿"：只要AI使用深度、结构化思维、目标感/拼劲中任一项明显不足（<=3），或面试显示自驱力弱、逻辑差、AI实践很浅、留任不可行、职业方向明显不匹配且长期稳定性弱、诚信风险明显，就不值得支付试稿成本。
 - 只要"逻辑结构、追问下的表现、AI使用深度、结构化思维与抽象能力、目标感具体度与拼劲"中有两项存在明显concerns，即使分数看起来达到4，也应输出"不建议给试稿"，因为付费试稿不是用来替面试补救核心门槛的。
-- trialRecommendation必须用成本意识说明：为什么值得/不值得花钱进入试稿，试稿要验证的关键点是什么。
+- trialRecommendation.costRationale不是规则复述，而是对该候选人的【综合决策说明】。必须结合前序简历、项目材料和本次面试记录，写成一段180-300字的候选人专属结论，至少包含：①候选人的主要背景和真实优势；②面试追问后暴露的关键短板，并引用具体经历、回答或行为证据；③这些优势与短板如何影响本岗位胜任力和长期投入；④为什么值得或不值得公司支付试稿费用。不得只写分数、维度名称、门槛规则或"系统严格校准"等模板话。
+- 若"建议给试稿"，要说明已经验证了哪些核心能力、仍有哪些未知点，以及为什么这些未知点值得用付费试稿继续验证；若"不建议给试稿"，也要先客观交代其亮点，再明确指出决定性短板，以及为什么这些短板属于面试阶段已能判断的问题、不应靠付费试稿补救。
+- trialFocus只列2-3个可由真实试稿验证、且与该候选人疑点直接相关的问题，不得写通用检查项。
 - 校准示例：如果候选人有AI使用场景但追问后多为浅层了解；做过公众号/媒体实习但无法抽象阅读量问题；目标感局限在完成当前小项目或活动、拼劲不足，则应输出"不建议给试稿"，不要因为经历看起来相关就给"建议给试稿"。
 
 ` + JSON_RULE + `
 JSON结构：
-{"dimensions":[{"name":"逻辑结构","score":1-5或null,"evidence":["…"],"concerns":["…"]},{"name":"追问下的表现",…},{"name":"AI使用深度",…},{"name":"结构化思维与抽象能力",…},{"name":"目标感具体度与拼劲",…},{"name":"沟通表达",…},{"name":"职业方向匹配度",…}],"careerDirection":{"status":"匹配"|"存疑"|"不匹配"|"无法判断","evidence":["…"],"risk":"…"},"consistency":{"status":"一致"|"部分不符"|"明显不符"|"无法判断","issues":["…"]},"honestySignals":{"positive":["…"],"negative":["…"]},"trialRecommendation":{"decision":"建议给试稿"|"谨慎给试稿"|"不建议给试稿","costRationale":"…","trialFocus":["如果给试稿，最该验证的点…"]},"conclusion":{"tier":"建议给试稿"|"谨慎给试稿"|"不建议给试稿","summary":"结合材料和面试后的试稿建议"}}`;
+{"dimensions":[{"name":"逻辑结构","score":1-5或null,"evidence":["…"],"concerns":["…"]},{"name":"追问下的表现",…},{"name":"AI使用深度",…},{"name":"结构化思维与抽象能力",…},{"name":"目标感具体度与拼劲",…},{"name":"沟通表达",…},{"name":"职业方向匹配度",…}],"careerDirection":{"status":"匹配"|"存疑"|"不匹配"|"无法判断","evidence":["…"],"risk":"…"},"consistency":{"status":"一致"|"部分不符"|"明显不符"|"无法判断","issues":["…"]},"honestySignals":{"positive":["…"],"negative":["…"]},"trialRecommendation":{"decision":"建议给试稿"|"谨慎给试稿"|"不建议给试稿","costRationale":"180-300字，结合简历、项目和面试具体证据的候选人综合描述及付费决策理由","trialFocus":["与该候选人直接相关的试稿验证点"]},"conclusion":{"tier":"建议给试稿"|"谨慎给试稿"|"不建议给试稿","summary":"结合材料和面试后的试稿建议"}}`;
 
 const TRIAL_PROMPT = CONTEXT_INTRO + `
 
@@ -1656,7 +1658,7 @@ async function runInterview() {
     const prior = priorContext();
     const r = await callLLM(INTERVIEW_PROMPT,
       '候选人姓名：' + current.name + '\n\n【面试转写文本】\n' + st.input + (prior ? '\n\n【前序阶段结果，用于交叉验证】\n' + prior : ''), {});
-    st.result = normalizeInterviewResult(parseJSONLoose(r.text));
+    st.result = normalizeInterviewResult(parseJSONLoose(r.text), current);
     st.engine = r.engine;
     st.at = new Date().toISOString();
     await saveCurrent(); renderSidebar(); renderMain();
@@ -1964,7 +1966,78 @@ function capInterviewDim(result, name, pattern, reason) {
   return true;
 }
 
-function normalizeInterviewResult(result) {
+function compactDecisionEvidence(value, maxLength) {
+  const text = String(value || '')
+    .replace(/^系统校准[：:]\s*/, '')
+    .replace(/\s+/g, ' ')
+    .replace(/[。；;，,\s]+$/, '')
+    .trim();
+  const limit = maxLength || 68;
+  return text.length > limit ? text.slice(0, limit) + '…' : text;
+}
+
+function firstSpecificEvidence(d, preferConcern) {
+  const first = (items) => (items || []).find(item => item && !/^系统校准/.test(String(item).trim()));
+  const value = preferConcern
+    ? first(d && d.concerns) || first(d && d.evidence)
+    : first(d && d.evidence) || first(d && d.concerns);
+  return compactDecisionEvidence(value);
+}
+
+function buildTrialDecisionRationale(result, decision, candidate, failing, triggered, careerBad) {
+  const profile = [];
+  if (candidate && candidate.name && candidate.nameStatus !== 'pending') profile.push(candidate.name);
+  if (candidate && candidate.school) profile.push(candidate.school);
+  if (candidate && candidate.educationStage) profile.push(candidate.educationStage);
+  if (candidate && candidate.graduationYear) profile.push(candidate.graduationYear + '届');
+
+  const priorResult = candidate && candidate.stages && candidate.stages.material && candidate.stages.material.result;
+  const priorStrength = ((priorResult && priorResult.dimensions) || [])
+    .filter(d => Number(d.score) >= 4 && firstSpecificEvidence(d, false))
+    .slice(0, 1)
+    .map(d => d.name + '方面，' + firstSpecificEvidence(d, false));
+  const interviewStrengths = ((result && result.dimensions) || [])
+    .filter(d => Number(d.score) >= 4 && firstSpecificEvidence(d, false))
+    .slice(0, 2)
+    .map(d => d.name + '方面，' + firstSpecificEvidence(d, false));
+  const strengths = priorStrength.concat(interviewStrengths).slice(0, 3);
+
+  const blockerNames = Array.from(new Set([].concat(failing || [], triggered || [])));
+  const blockers = blockerNames.slice(0, 3).map(name => {
+    const d = dimByName(result, name);
+    const detail = firstSpecificEvidence(d, true);
+    return name + (detail ? '方面，' + detail : '未稳定达到岗位要求');
+  });
+  if (careerBad && result.careerDirection) {
+    const careerDetail = compactDecisionEvidence(result.careerDirection.risk || (result.careerDirection.evidence || [])[0]);
+    blockers.push('职业方向' + (careerDetail ? '方面，' + careerDetail : '与岗位长期要求存在明显偏差'));
+  }
+  const consistencyIssue = result && result.consistency && (result.consistency.issues || [])[0];
+  if (consistencyIssue && blockers.length < 3) blockers.push('跨阶段信息方面，' + compactDecisionEvidence(consistencyIssue));
+
+  const subject = profile.length ? profile.join('，') : '该候选人';
+  const strengthText = strengths.length
+    ? '结合前序材料与面试，' + strengths.join('；') + '，这些是其目前较明确的优势'
+    : '结合前序材料与面试，候选人具备一定相关经历，但尚未形成足够强、可验证的突出优势';
+  const blockerText = blockers.length
+    ? blockers.join('；')
+    : '仍有关键能力缺少足够具体、可追问的证据';
+
+  if (decision === '建议给试稿') {
+    const focus = compactDecisionEvidence(result && result.trialRecommendation && (result.trialRecommendation.trialFocus || [])[0], 80);
+    return subject + '。' + strengthText + '。核心面试门槛已基本稳定通过，目前主要需要验证' +
+      (focus || '能否把已有能力转化为符合岗位要求的真实内容产出') +
+      '。这一不确定性适合通过试稿检验，付费成本有明确验证价值，因此建议给试稿。';
+  }
+  if (decision === '谨慎给试稿') {
+    return subject + '。' + strengthText + '。但' + blockerText +
+      '，说明其核心能力尚未完全稳定。若无更强反向证据，付费试稿的投入产出比有限；仅在HR认为现有亮点足以覆盖该风险时谨慎推进。';
+  }
+  return subject + '。' + strengthText + '。但面试进一步暴露出决定性短板：' + blockerText +
+    '。这些问题涉及AI实践深度、独立思考或持续驱动力，属于面试阶段就应达到的基础门槛，不能期待用一次付费试稿替代或补救。综合投入产出，不建议给试稿。';
+}
+
+function normalizeInterviewResult(result, candidate) {
   if (!result || result.__strictInterviewCalibrated) return result;
   const triggered = [];
   const rules = [
@@ -1989,14 +2062,11 @@ function normalizeInterviewResult(result) {
   const shouldRejectTrial = failing.length || careerBad || triggered.length >= 2;
 
   if (shouldRejectTrial) {
-    const reasons = [];
-    if (failing.length) reasons.push('核心维度未达到付费试稿门槛：' + failing.join('、'));
-    if (triggered.length >= 2) reasons.push('多个核心维度存在明显短板：' + triggered.join('、'));
-    if (careerBad) reasons.push('职业方向不匹配');
-    const reasonText = reasons.join('；');
     result.trialRecommendation = result.trialRecommendation || {};
     result.trialRecommendation.decision = '不建议给试稿';
-    result.trialRecommendation.costRationale = '系统严格校准：试稿需要付费，只给核心门槛稳定通过的候选人。' + reasonText + '，当前不值得用付费试稿补救这些面试短板。';
+    result.trialRecommendation.costRationale = buildTrialDecisionRationale(
+      result, '不建议给试稿', candidate, failing, triggered, careerBad
+    );
     result.trialRecommendation.trialFocus = result.trialRecommendation.trialFocus || ['如HR仍想推进，需先人工复核AI使用深度、结构化抽象能力和目标感是否有强反证。'];
     result.conclusion = result.conclusion || {};
     result.conclusion.tier = '不建议给试稿';
@@ -2008,12 +2078,22 @@ function normalizeInterviewResult(result) {
     });
     if (missingHard.length) {
       result.trialRecommendation.decision = '谨慎给试稿';
-      result.trialRecommendation.costRationale = '系统严格校准：' + missingHard.join('、') + '未稳定达到4分，不能直接建议进入付费试稿。';
+      result.trialRecommendation.costRationale = buildTrialDecisionRationale(
+        result, '谨慎给试稿', candidate, missingHard, [], false
+      );
       if (result.conclusion) {
         result.conclusion.tier = '谨慎给试稿';
         result.conclusion.summary = result.trialRecommendation.costRationale;
       }
     }
+  }
+  const rationale = result.trialRecommendation && String(result.trialRecommendation.costRationale || '');
+  if (result.trialRecommendation && (
+    rationale.length < 140 || /系统严格校准|试稿需要付费，只给|核心门槛稳定通过/.test(rationale)
+  )) {
+    result.trialRecommendation.costRationale = buildTrialDecisionRationale(
+      result, result.trialRecommendation.decision, candidate, [], [], false
+    );
   }
   Object.defineProperty(result, '__strictInterviewCalibrated', { value: true, enumerable: false, configurable: true });
   return result;
@@ -2173,7 +2253,7 @@ function trialRecommendationBlock(rec) {
   return '<div class="section-label">付费试稿建议</div>' +
     '<div class="next-step" style="margin-bottom:10px"><div><div class="k">是否给试稿</div>' +
     '<div class="v">' + esc(rec.decision || '未判断') + '</div>' +
-    (rec.costRationale ? '<div class="stage-summary" style="margin-top:4px">' + esc(rec.costRationale) + '</div>' : '') +
+    (rec.costRationale ? '<div class="k" style="margin-top:16px">综合决策说明</div><div class="stage-summary" style="margin-top:6px">' + esc(rec.costRationale) + '</div>' : '') +
     '</div>' + tierTag(rec.decision || '未判断') + '</div>' +
     qList(rec.trialFocus, '如果给试稿，重点验证');
 }
